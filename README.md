@@ -32,7 +32,7 @@ Now `threatspan` is on your PATH from anywhere.
 ### 3. Clone & run (Linux / macOS)
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/threatspan.git
+git clone https://github.com/djason1337/threatspan.git
 cd threatspan
 ./threatspan
 ```

@@ -20,13 +20,13 @@
     "incident-response",
     "blue-team"
   ],
-  "homepage": "https://github.com/YOUR_USERNAME/threatspan",
+  "homepage": "https://github.com/djason1337/threatspan",
   "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/threatspan/issues"
+    "url": "https://github.com/djason1337/threatspan/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/threatspan.git"
+    "url": "https://github.com/djason1337/threatspan.git"
   },
   "license": "MIT",
   "main": "server.js",
