@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SOC Toolkit - Active Scan</title>
+<script type='text/javascript' nonce='8Pccqb6kFhLbrpOlig0big==' src='https://contribution.usercontent.google.com/V3VraN2z2K3lp8bUJhvKiYpQcysjCepJABLqUsdMpFlYvvkSvKYBiJERON-frRCzP6fO9BO_F4hqh1tsCX_td_hX3YCQtQ9DzbNnwNWnW50kojAWXNtm-KBNpDnoZ7QxELwoJPS6IQMqauthqzGb8_7-sHZXs1YTIAzyI_6RbWixdbkopPxIMxF18nqre0SKl7nX5U9OwLGa6VfFd0JdF3CKR5lrjf11CDjC4geafAt6gEpXsckGqUiqdA2VWRo4s8HkKPJFMPhWaYpooEbYAgNyB2nAwJDPJ5lqzG4svUgEnoLXSpl98DXyeFjrgRk-h459Q30XVIUF3a-iPLrJQo9t6dTr-azllJe2VdN2ABEO9hGIS27d_DE1xrhfJ1IB1sKrFCcZLYVinol9wrV-346vgCKZ0VP1YtrOqEZpB-HA4wf9YBfVSpFdBPZReJPfGWhLw0nz2NJswxlNXtZF_juTKSShRZoUnUYQYGK8GsL3CAxHQDXPYCYAjbsQ4nVED0bUkUwHZeliSdyssWWq95in9EypzdBdJ6-js5RNBqZqmkj_lokeaWOZKbTAdIyGBJfzQALF9E49kteCHdw5KKVhqqkRdQi7TFkqCqnTSJSxNmyifXySkCTBX-yDaW20eH59JciGzy_5armmGYlsX2CrWzoHDeJGqdL39MiXaWvD2fCDL5cRGVnGFY0iK-C1MALBAte_EmPotiiJlVEXnqxu8YO72ych0eCEVzf7b_i320OOeyS-uXRzlzRo_FlnK4Y4mpengem4Y_cG-jai5hikWjjFPfDVwD1m1H5a08WaYqbghJK4Dvc'></script><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "primary": "#114cd4",
+          "background-light": "#F6F8FA",
+          "background-dark": "#101622",
+          "slate-900": "#0F172A",
+          "slate-800": "#1E293B",
+          "slate-500": "#64748B",
+          "slate-400": "#94A3B8",
+          "slate-200": "#E2E8F0",
+          "slate-100": "#F1F5F9",
+          "critical": "#DC2626",
+          "warning": "#D97706",
+          "safe": "#059669",
+        },
+        fontFamily: {
+          "display": ["Inter", "sans-serif"],
+          "mono": ["JetBrains Mono", "monospace"]
+        },
+        borderRadius: {"DEFAULT": "0.5rem", "lg": "0.75rem", "xl": "1.5rem", "full": "9999px"},
+        boxShadow: {
+          'soft': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)',
+        },
+        keyframes: {
+          shimmer: {
+            '0%, 100%': { backgroundColor: '#F1F5F9' },
+            '50%': { backgroundColor: '#E2E8F0' },
+          }
+        },
+        animation: {
+          'shimmer': 'shimmer 1.5s ease-in-out infinite',
+          'spin-slow': 'spin 2s linear infinite',
+        }
+      },
+    },
+  }
+</script>
+<style>
+  body {
+    font-family: 'Inter', sans-serif;
+  }
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #E2E8F0;
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #CBD5E1;
+  }
+</style>
+</head>
+<body class="bg-background-light text-slate-800 h-screen w-full overflow-hidden flex flex-col">
+<!-- Top Navigation Excluded based on Focus View (Process Screen) -->
+<header class="flex-none h-14 bg-white border-b border-slate-200 flex items-center px-6 justify-between shrink-0">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-primary text-white flex items-center justify-center">
+<span class="material-symbols-outlined text-xl" data-icon="shield">shield</span>
+</div>
+<h1 class="font-semibold text-slate-900 tracking-tight">SOC Toolkit</h1>
+</div>
+<div class="flex items-center gap-4 text-sm text-slate-500">
+<span class="material-symbols-outlined hover:text-slate-800 cursor-pointer transition-colors" data-icon="notifications">notifications</span>
+<span class="material-symbols-outlined hover:text-slate-800 cursor-pointer transition-colors" data-icon="settings">settings</span>
+<div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-medium ml-2">
+      JD
+    </div>
+</div>
+</header>
+<main class="flex-1 flex overflow-hidden">
+<!-- Left Pane: History -->
+<aside class="w-[280px] bg-white border-r border-slate-200 flex flex-col shrink-0">
+<div class="p-4 border-b border-slate-100 flex-none">
+<h2 class="text-sm font-semibold text-slate-900 mb-3">Recent History</h2>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" data-icon="search">search</span>
+<input class="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 bg-slate-50 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="Search past scans..." type="text"/>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-2">
+<!-- Today Group -->
+<div class="mb-4">
+<h3 class="text-xs font-medium text-slate-400 uppercase tracking-wider px-2 mb-2 mt-2">Today</h3>
+<div class="space-y-1">
+<button class="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors group text-left">
+<div class="flex items-center gap-2 overflow-hidden">
+<div class="w-2 h-2 rounded-full bg-critical shrink-0"></div>
+<span class="font-mono text-sm text-slate-900 truncate">104.28.23.44</span>
+</div>
+<span class="text-xs text-slate-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">10:42 AM</span>
+</button>
+<button class="w-full flex items-center justify-between p-2 rounded-lg bg-slate-100 transition-colors group text-left">
+<div class="flex items-center gap-2 overflow-hidden">
+<div class="w-2 h-2 rounded-full bg-slate-300 animate-pulse shrink-0"></div>
+<span class="font-mono text-sm text-slate-900 truncate font-semibold">198.51.100.42</span>
+</div>
+<span class="text-xs text-slate-400 shrink-0">Scanning</span>
+</button>
+<button class="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors group text-left">
+<div class="flex items-center gap-2 overflow-hidden">
+<div class="w-2 h-2 rounded-full bg-safe shrink-0"></div>
+<span class="font-mono text-sm text-slate-900 truncate">google.com</span>
+</div>
+<span class="text-xs text-slate-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">09:15 AM</span>
+</button>
+</div>
+</div>
+<!-- Yesterday Group -->
+<div>
+<h3 class="text-xs font-medium text-slate-400 uppercase tracking-wider px-2 mb-2">Yesterday</h3>
+<div class="space-y-1">
+<button class="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors group text-left">
+<div class="flex items-center gap-2 overflow-hidden">
+<div class="w-2 h-2 rounded-full bg-warning shrink-0"></div>
+<span class="font-mono text-sm text-slate-900 truncate">malicious-site.io</span>
+</div>
+<span class="text-xs text-slate-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">4:20 PM</span>
+</button>
+<button class="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors group text-left">
+<div class="flex items-center gap-2 overflow-hidden">
+<div class="w-2 h-2 rounded-full bg-critical shrink-0"></div>
+<span class="font-mono text-sm text-slate-900 truncate">eicar.org</span>
+</div>
+<span class="text-xs text-slate-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">1:12 PM</span>
+</button>
+<button class="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors group text-left">
+<div class="flex items-center gap-2 overflow-hidden">
+<div class="w-2 h-2 rounded-full bg-safe shrink-0"></div>
+<span class="font-mono text-sm text-slate-900 truncate">192.168.1.1</span>
+</div>
+<span class="text-xs text-slate-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">11:05 AM</span>
+</button>
+</div>
+</div>
+</div>
+</aside>
+<!-- Center Pane: Workspace -->
+<section class="flex-1 flex flex-col bg-background-light min-w-0 relative">
+<!-- Command Bar Area -->
+<div class="flex-none p-6 pb-2">
+<div class="max-w-3xl mx-auto w-full relative">
+<div class="absolute left-4 top-1/2 -translate-y-1/2 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="radar">radar</span>
+</div>
+<input class="w-full h-16 pl-12 pr-4 rounded-xl border border-slate-200 bg-white font-mono text-lg text-slate-900 shadow-soft focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow cursor-default" readonly="" type="text" value="198.51.100.42"/>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+<span class="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded">IP Address</span>
+</div>
+</div>
+</div>
+<!-- Active Scan Results Feed -->
+<div class="flex-1 overflow-y-auto p-6 pt-4">
+<div class="max-w-3xl mx-auto w-full space-y-4">
+<!-- Skeleton Card 1 -->
+<div class="w-full h-[120px] bg-white rounded-lg border border-slate-200 shadow-soft p-5 flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-md bg-slate-100 animate-shimmer"></div>
+<div class="w-32 h-5 rounded bg-slate-100 animate-shimmer"></div>
+</div>
+<div class="w-16 h-6 rounded-full bg-slate-100 animate-shimmer"></div>
+</div>
+<div class="space-y-2 mt-4">
+<div class="w-full h-3 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.1s;"></div>
+<div class="w-3/4 h-3 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.2s;"></div>
+</div>
+</div>
+<!-- Skeleton Card 2 -->
+<div class="w-full h-[120px] bg-white rounded-lg border border-slate-200 shadow-soft p-5 flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-md bg-slate-100 animate-shimmer" style="animation-delay: 0.2s;"></div>
+<div class="w-24 h-5 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.2s;"></div>
+</div>
+<div class="w-20 h-6 rounded-full bg-slate-100 animate-shimmer" style="animation-delay: 0.2s;"></div>
+</div>
+<div class="space-y-2 mt-4 flex gap-4">
+<div class="flex-1 h-12 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.3s;"></div>
+<div class="flex-1 h-12 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.4s;"></div>
+<div class="flex-1 h-12 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.5s;"></div>
+</div>
+</div>
+<!-- Skeleton Card 3 -->
+<div class="w-full h-[120px] bg-white rounded-lg border border-slate-200 shadow-soft p-5 flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-md bg-slate-100 animate-shimmer" style="animation-delay: 0.4s;"></div>
+<div class="w-36 h-5 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.4s;"></div>
+</div>
+<div class="w-12 h-6 rounded-full bg-slate-100 animate-shimmer" style="animation-delay: 0.4s;"></div>
+</div>
+<div class="mt-4 grid grid-cols-4 gap-4">
+<div class="h-8 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.5s;"></div>
+<div class="h-8 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.6s;"></div>
+<div class="h-8 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.7s;"></div>
+<div class="h-8 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.8s;"></div>
+</div>
+</div>
+<!-- Skeleton Card 4 -->
+<div class="w-full h-[120px] bg-white rounded-lg border border-slate-200 shadow-soft p-5 flex flex-col justify-between opacity-80">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-md bg-slate-100 animate-shimmer" style="animation-delay: 0.6s;"></div>
+<div class="w-28 h-5 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.6s;"></div>
+</div>
+</div>
+<div class="space-y-2 mt-4">
+<div class="w-5/6 h-3 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.7s;"></div>
+<div class="w-1/2 h-3 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.8s;"></div>
+</div>
+</div>
+<!-- Skeleton Card 5 -->
+<div class="w-full h-[120px] bg-white rounded-lg border border-slate-200 shadow-soft p-5 flex flex-col justify-between opacity-60">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-md bg-slate-100 animate-shimmer" style="animation-delay: 0.8s;"></div>
+<div class="w-20 h-5 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.8s;"></div>
+</div>
+</div>
+<div class="space-y-2 mt-4">
+<div class="w-full h-3 rounded bg-slate-100 animate-shimmer" style="animation-delay: 0.9s;"></div>
+<div class="w-full h-3 rounded bg-slate-100 animate-shimmer" style="animation-delay: 1.0s;"></div>
+</div>
+</div>
+<!-- Skeletons fade out to indicate more loading below -->
+<div class="w-full h-[120px] bg-white rounded-lg border border-slate-200 shadow-soft p-5 flex flex-col justify-between opacity-40">
+<div class="w-1/3 h-5 rounded bg-slate-100 animate-shimmer" style="animation-delay: 1.0s;"></div>
+<div class="w-2/3 h-12 rounded bg-slate-100 animate-shimmer" style="animation-delay: 1.1s;"></div>
+</div>
+<div class="w-full h-[120px] bg-white rounded-lg border border-slate-200 shadow-soft p-5 flex flex-col justify-between opacity-20">
+<div class="w-1/4 h-5 rounded bg-slate-100 animate-shimmer" style="animation-delay: 1.2s;"></div>
+<div class="w-full h-12 rounded bg-slate-100 animate-shimmer" style="animation-delay: 1.3s;"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Pane: Assessment Progress -->
+<aside class="w-[320px] bg-white border-l border-slate-200 shrink-0 flex flex-col">
+<div class="p-6 flex-1 flex flex-col items-center justify-center mt-[-10vh]">
+<!-- Progress Indicator -->
+<div class="relative w-48 h-48 flex items-center justify-center">
+<!-- SVG Ring Background -->
+<svg class="absolute inset-0 w-full h-full transform -rotate-90" viewbox="0 0 100 100">
+<circle cx="50" cy="50" fill="none" r="45" stroke="#F1F5F9" stroke-width="8"></circle>
+<!-- Animated Progress Dash -->
+<circle class="animate-[dash_2s_ease-in-out_infinite_alternate]" cx="50" cy="50" fill="none" r="45" stroke="#114cd4" stroke-dasharray="283" stroke-dashoffset="180" stroke-linecap="round" stroke-width="8"></circle>
+</svg>
+<!-- Center Content -->
+<div class="flex flex-col items-center justify-center z-10">
+<span class="material-symbols-outlined text-4xl text-primary mb-2 animate-pulse" data-icon="memory">memory</span>
+<span class="text-3xl font-bold text-slate-900 font-display">42%</span>
+</div>
+</div>
+<div class="text-center mt-8 space-y-2">
+<h3 class="text-lg font-semibold text-slate-900">Scanning Indicator</h3>
+<p class="text-sm text-slate-500">Querying 7 external modules...</p>
+</div>
+<!-- Module Status List (Mini) -->
+<div class="w-full mt-10 space-y-3 px-2">
+<div class="flex items-center justify-between text-sm">
+<span class="text-slate-600 flex items-center gap-2">
+<span class="material-symbols-outlined text-safe text-[18px]" data-icon="check_circle">check_circle</span>
+            VirusTotal
+          </span>
+<span class="text-slate-400">Complete</span>
+</div>
+<div class="flex items-center justify-between text-sm">
+<span class="text-slate-600 flex items-center gap-2">
+<span class="material-symbols-outlined text-safe text-[18px]" data-icon="check_circle">check_circle</span>
+            GeoIP
+          </span>
+<span class="text-slate-400">Complete</span>
+</div>
+<div class="flex items-center justify-between text-sm">
+<span class="text-slate-900 font-medium flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px] animate-spin-slow" data-icon="sync">sync</span>
+            AbuseIPDB
+          </span>
+<span class="text-primary font-medium">Scanning</span>
+</div>
+<div class="flex items-center justify-between text-sm opacity-50">
+<span class="text-slate-500 flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-300 text-[18px]" data-icon="pending">pending</span>
+            Whois
+          </span>
+<span class="text-slate-400">Pending</span>
+</div>
+</div>
+</div>
+<!-- Dimmed Action Area -->
+<div class="p-6 border-t border-slate-100 bg-slate-50/50">
+<button class="w-full h-10 rounded-lg bg-slate-200 text-slate-400 font-medium text-sm cursor-not-allowed transition-colors" disabled="">
+        Awaiting Results
+      </button>
+</div>
+</aside>
+</main>
+<style>
+  @keyframes dash {
+    0% { stroke-dashoffset: 283; }
+    100% { stroke-dashoffset: 70; }
+  }
+</style>
+</body></html>

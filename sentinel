@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Sentinel SOC Toolkit launcher
+# Usage: ./sentinel [options]      (run from cloned repo)
+#
+# Forwards all args to server.js. Examples:
+#   ./sentinel
+#   ./sentinel --port 8080
+#   ./sentinel --no-open
+
+set -e
+
+# Resolve script directory (handles symlinks)
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
+# Check Node is installed
+if ! command -v node >/dev/null 2>&1; then
+  echo ""
+  echo "  ✗ Node.js is required but not installed."
+  echo ""
+  echo "  Install Node.js from: https://nodejs.org"
+  echo "  Or with Homebrew:     brew install node"
+  echo ""
+  exit 1
+fi
+
+# Check Node version (>=14)
+NODE_MAJOR=$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)
+if [ "$NODE_MAJOR" -lt 14 ]; then
+  echo ""
+  echo "  ✗ Node.js 14 or newer is required (found: $(node --version))."
+  echo ""
+  exit 1
+fi
+
+# Run the server with all forwarded args
+exec node "$DIR/server.js" "$@"

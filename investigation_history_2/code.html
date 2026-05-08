@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SOC Toolkit - Investigation History</title>
+<!-- Google Fonts: Inter -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script type='text/javascript' nonce='mxBMhL078LGhazfDBbtEPw==' src='https://contribution.usercontent.google.com/9kw04ISovy18WyNl9COY_S67EGQnAEggTDxvaxxxRylPAt2aurZafXmunIbQQBAuhJ6JIHfTZv7yR_bwJw1C1M4UIjQnXyaJAtDVzsYvnURoBuuit64IJiQd5SOoVG75cDs_cwu8_vta9hyGOVHUzZHzpyoEuamRKjZY-vBcWNrxN2mIwm0DrSVg27Ma690KC8qPmT7AJv1Orf-29r34nBAQ2I3b4oQtjv_wKUncKCpqhRzrstBR3zAzGr3ppIyu2lOmVXs10bJmVqioqn7ecJY9fVRnO_KKVAMVvNb0LMTzdeVEBAc0hz0n5II1hhLoDRPl17SZ49heRXbl9SRsQW0LAm9ZL1QtTFHjmpv5KQMIK3Z-2wtGGA_l0v5KMpol6917qA1jhOByLhiuNUF9fjSA63PfjRjIr8any4nuljZXKI3II49FzErQY__POBzUc5H2plVLAE5916q0eQcxRi3x8VG2gYR67BRQGO1zf0hKFoEoknd1K9x3VsLGzKQ3IIAPqzAbVMz3HMQ-V8hMFrgMO4hZXaKbVwt_5_AEUc6sTW78f5Cmsip2mB6n991Z-K73v_cWMAlCe9MpRjH8e1filmvikULNFkjftSHMXQifuVeSLrkYcDvvnHTZh5DjHlRuE9JEj04x3cBz_seY_Em0CaVuCP7Nx0iRwmVKau7GoNnO35jsOe0_verRJG_E_GZ3sz0O04FXOQ6brz8IEjaio7G90XBT4n6CQIadoH6VdffrgsrnWTrURipxb4p4W8HdSkms2b0SPYEq7brCxTVP5_j6m4Vu9fETJzBW3XMoI92syDSRaDs'></script><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#114cd4",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                        "soc-bg": "#F6F8FA",
+                        "soc-surface": "#FFFFFF",
+                        "soc-text": "#1E293B",
+                        "soc-muted": "#94A3B8",
+                        "soc-critical": "#DC2626",
+                        "soc-warning": "#D97706",
+                        "soc-safe": "#059669",
+                        "soc-border": "#E2E8F0"
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "mono": ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", "monospace"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "md": "0.5rem",
+                        "lg": "0.75rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05)',
+                        'lift': '0 10px 15px -3px rgba(0,0,0,0.1)'
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        /* Scrollbar styles for the dense list */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #E2E8F0;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body class="bg-soc-bg text-soc-text h-screen overflow-hidden flex flex-col font-display">
+<!-- Excluded Shared Nav: "Investigation History" is a focused view / tool interface, but PRD mentions 3-pane layout. It's a destination within the tool, but to match the specific "Fluid Workspace" full-screen app feel, we use a minimal custom header or embed it. Actually, "Investigation Logs" top bar was provided as a shared component, but PRD explicitly describes the exact layout. Let's build the precise 3-pane layout requested. -->
+<!-- Main Workspace Container -->
+<div class="flex flex-1 h-full w-full overflow-hidden p-4 gap-4">
+<!-- Left Pane: Expanded Investigation History (400px width) -->
+<aside class="w-[400px] flex-shrink-0 bg-soc-surface rounded-lg shadow-soft border border-soc-border flex flex-col h-full overflow-hidden transition-all duration-300">
+<!-- Header & Search -->
+<div class="p-4 border-b border-soc-border bg-soc-surface z-10 flex-shrink-0">
+<div class="flex items-center justify-between mb-4">
+<h2 class="text-lg font-bold text-soc-text leading-tight tracking-tight">Investigation History</h2>
+<button class="text-soc-muted hover:text-soc-text transition-colors" title="Collapse">
+<span class="material-symbols-outlined text-[20px]" data-icon="keyboard_double_arrow_left">keyboard_double_arrow_left</span>
+</button>
+</div>
+<!-- Search Bar -->
+<div class="relative mb-3">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-soc-muted text-[18px]" data-icon="search">search</span>
+<input class="w-full h-[36px] pl-9 pr-4 bg-[#F1F5F9] border-transparent focus:border-primary focus:ring-1 focus:ring-primary rounded-lg text-sm text-soc-text placeholder:text-soc-muted transition-all" placeholder="Search IPs, hashes, domains..." type="text"/>
+</div>
+<!-- Filter Tags -->
+<div class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
+<button class="h-[24px] px-3 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[12px] font-medium whitespace-nowrap">All</button>
+<button class="h-[24px] px-3 bg-[#F1F5F9] text-[#475569] hover:bg-[#E2E8F0] rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors">Malicious</button>
+<button class="h-[24px] px-3 bg-[#F1F5F9] text-[#475569] hover:bg-[#E2E8F0] rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors">Suspicious</button>
+<button class="h-[24px] px-3 bg-[#F1F5F9] text-[#475569] hover:bg-[#E2E8F0] rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors">Safe</button>
+</div>
+</div>
+<!-- Log Entries List -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-2">
+<!-- Group: Today -->
+<div class="mb-4">
+<div class="px-3 py-2 text-[12px] font-semibold text-soc-muted uppercase tracking-wider">Today</div>
+<div class="space-y-1">
+<!-- Malicious Item -->
+<div class="group flex items-center justify-between p-3 hover:bg-[#F1F5F9] rounded-md cursor-pointer transition-colors border border-transparent hover:border-soc-border">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-soc-critical mt-0.5"></div>
+<div class="flex flex-col">
+<span class="font-mono text-[13px] font-medium text-soc-text">198.51.100.42</span>
+<span class="text-[12px] text-soc-muted">SSH Brute Force</span>
+</div>
+</div>
+<span class="text-[12px] text-soc-muted">10:42 AM</span>
+</div>
+<!-- Suspicious Item -->
+<div class="group flex items-center justify-between p-3 hover:bg-[#F1F5F9] rounded-md cursor-pointer transition-colors border border-transparent hover:border-soc-border">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-soc-warning mt-0.5"></div>
+<div class="flex flex-col">
+<span class="font-mono text-[13px] font-medium text-soc-text">example.com</span>
+<span class="text-[12px] text-soc-muted">Newly Registered Domain</span>
+</div>
+</div>
+<span class="text-[12px] text-soc-muted">09:15 AM</span>
+</div>
+<!-- Safe Item -->
+<div class="group flex items-center justify-between p-3 hover:bg-[#F1F5F9] rounded-md cursor-pointer transition-colors border border-transparent hover:border-soc-border">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-soc-safe mt-0.5"></div>
+<div class="flex flex-col">
+<span class="font-mono text-[13px] font-medium text-soc-text">142.250.190.46</span>
+<span class="text-[12px] text-soc-muted">Google LLC</span>
+</div>
+</div>
+<span class="text-[12px] text-soc-muted">08:30 AM</span>
+</div>
+</div>
+</div>
+<!-- Group: Yesterday -->
+<div class="mb-4">
+<div class="px-3 py-2 text-[12px] font-semibold text-soc-muted uppercase tracking-wider">Yesterday</div>
+<div class="space-y-1">
+<!-- Safe Item -->
+<div class="group flex items-center justify-between p-3 hover:bg-[#F1F5F9] rounded-md cursor-pointer transition-colors border border-transparent hover:border-soc-border">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-soc-safe mt-0.5"></div>
+<div class="flex flex-col">
+<span class="font-mono text-[13px] font-medium text-soc-text">203.0.113.5</span>
+<span class="text-[12px] text-soc-muted">Internal Network</span>
+</div>
+</div>
+<span class="text-[12px] text-soc-muted">14:22 PM</span>
+</div>
+<!-- Safe Item -->
+<div class="group flex items-center justify-between p-3 hover:bg-[#F1F5F9] rounded-md cursor-pointer transition-colors border border-transparent hover:border-soc-border">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-soc-safe mt-0.5"></div>
+<div class="flex flex-col">
+<span class="font-mono text-[13px] font-medium text-soc-text">8.8.8.8</span>
+<span class="text-[12px] text-soc-muted">Google DNS</span>
+</div>
+</div>
+<span class="text-[12px] text-soc-muted">11:05 AM</span>
+</div>
+<!-- Malicious Item -->
+<div class="group flex items-center justify-between p-3 hover:bg-[#F1F5F9] rounded-md cursor-pointer transition-colors border border-transparent hover:border-soc-border bg-[#F1F5F9] border-soc-border">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-soc-critical mt-0.5"></div>
+<div class="flex flex-col">
+<span class="font-mono text-[13px] font-medium text-soc-text">d34db33f.malware.net</span>
+<span class="text-[12px] text-soc-muted">Known C2 Server</span>
+</div>
+</div>
+<span class="text-[12px] text-soc-muted">09:01 AM</span>
+</div>
+</div>
+</div>
+<!-- Group: Older -->
+<div class="mb-4">
+<div class="px-3 py-2 text-[12px] font-semibold text-soc-muted uppercase tracking-wider">Last Week</div>
+<div class="space-y-1">
+<!-- Suspicious Item -->
+<div class="group flex items-center justify-between p-3 hover:bg-[#F1F5F9] rounded-md cursor-pointer transition-colors border border-transparent hover:border-soc-border">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-soc-warning mt-0.5"></div>
+<div class="flex flex-col">
+<span class="font-mono text-[13px] font-medium text-soc-text">afda34...99b2</span>
+<span class="text-[12px] text-soc-muted">SHA256 Hash</span>
+</div>
+</div>
+<span class="text-[12px] text-soc-muted">Oct 24</span>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- Center Workspace: Dimmed/Empty State -->
+<main class="flex-1 flex flex-col h-full relative opacity-50 pointer-events-none">
+<!-- Command Bar (Inactive) -->
+<div class="w-full max-w-3xl mx-auto mt-8 bg-soc-surface rounded-lg shadow-soft border border-soc-border h-[64px] flex items-center px-4">
+<span class="material-symbols-outlined text-soc-muted mr-3 text-[24px]" data-icon="search">search</span>
+<div class="text-soc-muted text-[15px] font-medium">Enter IP, Domain, Hash, or URL...</div>
+<div class="ml-auto text-soc-muted text-xs border border-soc-border rounded px-2 py-1">/</div>
+</div>
+<!-- Empty State Illustration -->
+<div class="flex-1 flex flex-col items-center justify-center mt-[-100px]">
+<div class="w-24 h-24 rounded-full bg-soc-border/50 flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-soc-muted text-[48px]" data-icon="manage_search" data-weight="fill">manage_search</span>
+</div>
+<h3 class="text-lg font-medium text-soc-text mb-1">Awaiting Indicator</h3>
+<p class="text-sm text-soc-muted text-center max-w-xs">Select an item from your history or start a new investigation.</p>
+</div>
+</main>
+<!-- Right Pane: Assessment (Hidden/Dimmed to emphasize Left Pane) -->
+<aside class="w-[320px] flex-shrink-0 bg-soc-surface/50 rounded-lg border border-soc-border/50 hidden lg:flex flex-col opacity-30 pointer-events-none">
+<div class="p-6 flex flex-col items-center justify-center h-full">
+<div class="w-32 h-16 border-t-[8px] border-soc-border rounded-t-full mb-4"></div>
+<div class="text-sm text-soc-muted">No active assessment</div>
+</div>
+</aside>
+</div>
+</body></html>

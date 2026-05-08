@@ -1,0 +1,3784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ThreatSpan</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg: '#F6F8FA', surface: '#FFFFFF',
+            'surf-low': '#F8FAFC', 'surf-high': '#EEF2F7',
+            txt: '#1E293B', muted: '#64748B', border: '#E2E8F0',
+            critical: '#DC2626', warning: '#D97706', safe: '#059669',
+            info: '#2563EB', primary: '#0F172A',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+            display: ['Manrope', 'sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html { height: 100%; }
+    body {
+      height: 100%; margin: 0; padding: 0; overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      background: #F6F8FA; color: #1E293B;
+      font-size: 14px; line-height: 1.5;
+      /* Prevent total collapse — scroll horizontally on very small windows */
+      min-width: 960px;
+    }
+
+    /* ── Material Symbols ─────────────────────────────── */
+    .msym {
+      font-family: 'Material Symbols Outlined';
+      font-weight: normal; font-style: normal;
+      font-size: 18px; line-height: 1;
+      letter-spacing: normal; text-transform: none;
+      display: inline-block; white-space: nowrap; direction: ltr;
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      vertical-align: middle;
+    }
+    .msym.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20; }
+    .msym.sm   { font-size: 15px; }
+    .msym.lg   { font-size: 22px; }
+    .msym.xl   { font-size: 28px; }
+
+    /* ── Scrollbar ─────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+    /* ── Animations ────────────────────────────────────── */
+    @keyframes shimmer { 0%,100% { background:#F1F5F9; } 50% { background:#E2E8F0; } }
+    .shimmer { animation: shimmer 1.5s ease-in-out infinite; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 1.1s linear infinite; display: inline-block; }
+
+    @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+    .slide-down { animation: slideDown 0.2s ease-out both; }
+
+    @keyframes pulse2 { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+    .pulse { animation: pulse2 1.8s ease-in-out infinite; }
+
+    @keyframes toastIn  { from { opacity:0; transform:translateY(10px) translateX(-50%); } to { opacity:1; transform:translateY(0) translateX(-50%); } }
+    @keyframes toastOut { from { opacity:1; transform:translateY(0) translateX(-50%); }  to { opacity:0; transform:translateY(4px) translateX(-50%); } }
+
+    /* ── Settings drawer ───────────────────────────────── */
+    #settings-drawer { transition: transform .28s cubic-bezier(.4,0,.2,1); transform: translateX(100%); }
+    #settings-drawer.open { transform: translateX(0); }
+    #overlay { transition: opacity .25s ease; opacity:0; pointer-events:none; }
+    #overlay.visible { opacity:1; pointer-events:all; }
+
+    /* ── Gauge arc ─────────────────────────────────────── */
+    #gauge-arc { transition: stroke-dashoffset .9s cubic-bezier(.4,0,.2,1), stroke .5s ease; }
+
+    /* ── Module cards ──────────────────────────────────── */
+    .mod-card {
+      background:#fff; border:1px solid #E2E8F0; border-radius:12px;
+      overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.04);
+      transition: box-shadow .15s ease;
+    }
+    .mod-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); }
+    .mod-card.bc-critical { border-left: 3px solid #DC2626; }
+    .mod-card.bc-warning  { border-left: 3px solid #D97706; }
+    .mod-card.bc-safe     { border-left: 3px solid #059669; }
+    .mod-card.bc-info     { border-left: 3px solid #2563EB; }
+
+    .card-body {
+      overflow: hidden;
+      transition: max-height .3s ease, opacity .2s ease, padding .2s ease;
+    }
+    .card-body.collapsed { max-height:0; opacity:0; padding-top:0 !important; padding-bottom:0 !important; }
+    .card-body.expanded  { max-height:3000px; opacity:1; }
+
+    /* ── History items ─────────────────────────────────── */
+    .hist-item { transition: background .1s; cursor:pointer; border-radius:8px; }
+    .hist-item:hover  { background:#F1F5F9; }
+    .hist-item.active { background:#EEF2F7; }
+
+    /* ── Buttons ───────────────────────────────────────── */
+    .btn-primary {
+      background:#0F172A; color:#fff; border:none; border-radius:8px;
+      padding:9px 16px; font-size:13px; font-weight:600;
+      transition:all .15s; display:inline-flex; align-items:center; gap:6px;
+      cursor:pointer; white-space:nowrap;
+    }
+    .btn-primary:hover { background:#1E293B; }
+    .btn-primary:active { transform:scale(.97); }
+
+    .btn-ghost {
+      background:transparent; border:1px solid #E2E8F0; border-radius:8px;
+      padding:7px 13px; font-size:13px; font-weight:500; color:#475569;
+      transition:all .15s; display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+    }
+    .btn-ghost:hover { background:#F8FAFC; border-color:#CBD5E1; }
+
+    .btn-icon {
+      background:transparent; border:none; padding:5px; border-radius:6px;
+      color:#94A3B8; transition:all .13s; display:inline-flex;
+      align-items:center; justify-content:center; cursor:pointer;
+    }
+    .btn-icon:hover { background:#F1F5F9; color:#475569; }
+
+    .action-btn {
+      width:100%; border:none; border-radius:10px; padding:10px 14px;
+      font-size:13px; font-weight:600; display:flex; align-items:center;
+      gap:8px; justify-content:center; transition:all .15s; cursor:pointer;
+    }
+    .action-btn:active { transform:scale(.98); }
+    .action-btn.executed { background:#059669 !important; color:#fff !important; }
+
+    /* ── Status pills ──────────────────────────────────── */
+    .pill { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:100px; font-size:11px; font-weight:600; white-space:nowrap; }
+    .pill-pending { background:#F1F5F9; color:#64748B; }
+    .pill-running { background:#EFF6FF; color:#2563EB; }
+    .pill-done    { background:#F0FDF4; color:#059669; }
+    .pill-error   { background:#FEF2F2; color:#DC2626; }
+    .pill-nokey   { background:#FFFBEB; color:#D97706; }
+    .pill-na      { background:#F1F5F9; color:#94A3B8; }
+
+    /* ── Data table ────────────────────────────────────── */
+    .data-table { width:100%; border-collapse:collapse; }
+    .data-row {
+      display:flex; justify-content:space-between; align-items:flex-start;
+      gap:12px; padding:6px 0; border-bottom:1px solid #F8FAFC;
+    }
+    .data-row:last-child { border-bottom:none; }
+    .data-key {
+      font-size:11px; font-weight:600; color:#94A3B8; text-transform:uppercase;
+      letter-spacing:.5px; white-space:nowrap; flex-shrink:0; padding-top:1px;
+    }
+    .data-val {
+      font-family:'JetBrains Mono',monospace; font-size:12px; color:#1E293B;
+      font-weight:500; text-align:right; word-break:break-word;
+      overflow-wrap:anywhere; min-width:0; flex:1;
+    }
+
+    /* ── Score bar ─────────────────────────────────────── */
+    .score-bar { height:4px; background:#F1F5F9; border-radius:2px; overflow:hidden; flex:1; margin:0 8px; }
+    .score-bar-fill { height:100%; border-radius:2px; transition:width .8s cubic-bezier(.4,0,.2,1); }
+
+    /* ── Boolean badges ────────────────────────────────── */
+    .bool-yes  { background:#FEF2F2; color:#DC2626; padding:1px 7px; border-radius:4px; font-size:11px; font-weight:600; }
+    .bool-no   { background:#F0FDF4; color:#059669; padding:1px 7px; border-radius:4px; font-size:11px; font-weight:600; }
+    .bool-warn { background:#FFFBEB; color:#D97706; padding:1px 7px; border-radius:4px; font-size:11px; font-weight:600; }
+
+    /* ── IOC Input ─────────────────────────────────────── */
+    #ioc-input { font-family:'JetBrains Mono',monospace; font-size:17px; font-weight:500; }
+    #ioc-input:focus { outline:none; }
+
+    /* ── Toast ─────────────────────────────────────────── */
+    #toast {
+      position:fixed; bottom:24px; left:50%; z-index:9999;
+      display:none; padding:9px 18px; border-radius:12px;
+      font-size:13px; font-weight:500; color:#fff;
+      box-shadow:0 4px 20px rgba(0,0,0,.18);
+      white-space:nowrap;
+    }
+
+    /* ── Notes ─────────────────────────────────────────── */
+    #analyst-notes { resize:none; font-family:'Inter',sans-serif; font-size:12px; }
+    #analyst-notes:focus { outline:none; border-color:#94A3B8; }
+
+    /* ── Toggle switch ─────────────────────────────────── */
+    .toggle-track { width:36px; height:20px; border-radius:100px; border:2px solid #CBD5E1; transition:all .2s; background:#E2E8F0; flex-shrink:0; position:relative; }
+    .toggle-track.on { background:#0F172A; border-color:#0F172A; }
+    .toggle-thumb { width:14px; height:14px; border-radius:50%; background:#fff; position:absolute; top:1px; left:1px; transition:transform .2s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+    .toggle-track.on .toggle-thumb { transform:translateX(16px); }
+
+    /* ── Filter chips ──────────────────────────────────── */
+    .filter-chip { padding:3px 10px; border-radius:100px; font-size:11px; font-weight:600; cursor:pointer; border:1.5px solid transparent; transition:all .13s; }
+    .filter-chip.active { border-color:currentColor; }
+
+    /* ── Connection banner ─────────────────────────────── */
+    #conn-banner { display:none; }
+    #conn-banner.show { display:flex; }
+
+    /* ── Playbook chips ────────────────────────────────── */
+    .pb-chip {
+      display:inline-flex; align-items:center; gap:5px;
+      padding:4px 10px; border-radius:100px;
+      font-size:11px; font-weight:600;
+      background:#fff; border:1px solid #E2E8F0; color:#64748B;
+      cursor:pointer; transition: all .15s; white-space:nowrap;
+    }
+    .pb-chip:hover { background:#F8FAFC; border-color:#CBD5E1; color:#475569; }
+    .pb-chip.active { background:#0F172A; border-color:#0F172A; color:#fff; }
+    .pb-chip.active:hover { background:#1E293B; }
+    .pb-chip .msym { font-size:13px; }
+
+    /* ── Bulk modal ────────────────────────────────────── */
+    #bulk-overlay { transition: opacity .25s ease; opacity:0; pointer-events:none; }
+    #bulk-overlay.visible { opacity:1; pointer-events:all; }
+    #bulk-modal { transition: transform .25s cubic-bezier(.4,0,.2,1), opacity .25s; transform: scale(.96); opacity:0; pointer-events:none; }
+    #bulk-modal.open { transform: scale(1); opacity:1; pointer-events:all; }
+
+    .bulk-textarea {
+      width:100%; min-height:140px; max-height:240px;
+      font-family:'JetBrains Mono', monospace; font-size:12px;
+      padding:12px; border:1px solid #E2E8F0; border-radius:8px;
+      background:#F8FAFC; color:#1E293B; resize:vertical;
+    }
+    .bulk-textarea:focus { outline:none; border-color:#0F172A; background:#fff; }
+
+    .bulk-ioc-row {
+      display:flex; align-items:center; gap:10px;
+      padding:6px 10px; border-radius:6px;
+      transition: background .12s; cursor:pointer;
+    }
+    .bulk-ioc-row:hover { background:#F1F5F9; }
+    .bulk-ioc-row.checked { background:#EFF6FF; }
+    .bulk-progress {
+      height:3px; background:#F1F5F9; border-radius:2px; overflow:hidden;
+    }
+    .bulk-progress-fill {
+      height:100%; background:#0F172A; transition: width .3s ease;
+    }
+
+    /* ── Export menu ───────────────────────────────────── */
+    .export-menu {
+      position:absolute; top:100%; right:0; margin-top:6px; z-index:50;
+      background:#fff; border:1px solid #E2E8F0; border-radius:10px;
+      box-shadow:0 8px 24px rgba(0,0,0,.10); min-width:200px;
+      padding:4px; display:none;
+    }
+    .export-menu.open { display:block; }
+    .export-menu button {
+      display:flex; align-items:center; gap:8px; width:100%;
+      padding:8px 10px; border:none; background:transparent;
+      border-radius:6px; cursor:pointer; font-size:12px; text-align:left;
+      color:#1E293B; transition: background .12s;
+    }
+    .export-menu button:hover { background:#F1F5F9; }
+
+    /* ── urlscan screenshot ────────────────────────────── */
+    .urlscan-screenshot {
+      width:100%; max-height:240px; object-fit:cover;
+      border-radius:8px; border:1px solid #E2E8F0; margin-top:8px;
+    }
+
+    /* ── CVE / KEV / ATT&CK badges ─────────────────────── */
+    .cve-row {
+      display:flex; align-items:center; gap:8px; padding:6px 10px;
+      border-radius:6px; background:#F8FAFC; border:1px solid #E2E8F0;
+      margin-top:4px; font-size:11px;
+    }
+    .cve-row.kev { background:#FEF2F2; border-color:#FECACA; }
+    .cve-row.kev-ransom { background:#FEE2E2; border-color:#F87171; }
+    .cve-id { font-family:'JetBrains Mono', monospace; font-weight:600; color:#0F172A; flex-shrink:0; }
+    .cve-id a { color:#0F172A; text-decoration:none; }
+    .cve-id a:hover { text-decoration:underline; }
+    .cve-cvss {
+      display:inline-flex; align-items:center; gap:3px;
+      padding:2px 6px; border-radius:4px; font-weight:700;
+      font-size:10px; white-space:nowrap;
+    }
+    .cve-summary { color:#475569; flex:1; line-height:1.4; min-width:0; }
+    .cve-kev-badge {
+      display:inline-flex; align-items:center; gap:3px;
+      padding:1px 6px; border-radius:100px; font-size:9px; font-weight:700;
+      background:#DC2626; color:#fff; text-transform:uppercase; letter-spacing:.3px;
+      flex-shrink:0;
+    }
+    .cve-kev-badge.ransom { background:#7F1D1D; }
+
+    .attck-chip {
+      display:inline-flex; align-items:center; gap:3px;
+      padding:2px 8px; border-radius:6px;
+      background:#1E293B; color:#fff;
+      font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:600;
+      text-decoration:none; white-space:nowrap;
+      transition: background .12s;
+    }
+    .attck-chip:hover { background:#0F172A; }
+    .attck-chip .msym { font-size:11px; }
+
+    /* ── NIST CSF function badges ──────────────────────── */
+    .csf-badge {
+      display:inline-flex; align-items:center; justify-content:center;
+      min-width:22px; height:16px; padding:0 5px;
+      border-radius:4px; font-family:'JetBrains Mono', monospace;
+      font-size:9px; font-weight:700; letter-spacing:.3px;
+      color:#fff; cursor:help; user-select:none;
+    }
+    .csf-coverage {
+      display:flex; gap:4px; align-items:center;
+      padding:8px 10px; background:#F8FAFC;
+      border:1px solid #E2E8F0; border-radius:8px;
+      margin-top:10px;
+    }
+    .csf-cell {
+      flex:1; height:32px; border-radius:6px;
+      display:flex; align-items:center; justify-content:center;
+      font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:700;
+      color:#94A3B8; background:#F1F5F9; border:1px solid #E2E8F0;
+      cursor:help; transition: all .15s;
+    }
+    .csf-cell.touched { color:#fff; }
+    .csf-cell.touched.GV { background:#475569; border-color:#475569; }
+    .csf-cell.touched.ID { background:#2563EB; border-color:#2563EB; }
+    .csf-cell.touched.PR { background:#059669; border-color:#059669; }
+    .csf-cell.touched.DE { background:#D97706; border-color:#D97706; }
+    .csf-cell.touched.RS { background:#DC2626; border-color:#DC2626; }
+    .csf-cell.touched.RC { background:#7C3AED; border-color:#7C3AED; }
+
+    /* ── Tooltip system ────────────────────────────────── */
+    .tip { position: relative; }
+    .tip[data-tip]:hover::after,
+    .tip[data-tip]:focus-within::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 8px); left: 50%;
+      transform: translateX(-50%);
+      background:#0F172A; color:#fff;
+      padding:7px 10px; border-radius:6px;
+      font-family:'Inter', sans-serif;
+      font-size:11px; font-weight:500; line-height:1.4;
+      white-space: normal; max-width: 280px; width: max-content;
+      text-align:center;
+      box-shadow:0 4px 14px rgba(0,0,0,.15);
+      z-index: 1000; pointer-events:none;
+      animation: tipFade .15s ease-out both;
+    }
+    .tip[data-tip]:hover::before,
+    .tip[data-tip]:focus-within::before {
+      content: '';
+      position: absolute;
+      bottom: calc(100% + 2px); left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #0F172A;
+      z-index: 1000; pointer-events:none;
+    }
+    .tip-bottom[data-tip]:hover::after,
+    .tip-bottom[data-tip]:focus-within::after {
+      bottom: auto; top: calc(100% + 8px);
+    }
+    .tip-bottom[data-tip]:hover::before,
+    .tip-bottom[data-tip]:focus-within::before {
+      bottom: auto; top: calc(100% + 2px);
+      border-top-color: transparent; border-bottom-color: #0F172A;
+    }
+    @keyframes tipFade { from { opacity:0; transform:translateX(-50%) translateY(2px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+
+    /* ── Help drawer ───────────────────────────────────── */
+    #help-drawer { transition: transform .28s cubic-bezier(.4,0,.2,1); transform: translateX(100%); }
+    #help-drawer.open { transform: translateX(0); }
+    .help-section h3 {
+      font-size:11px; font-weight:700; letter-spacing:.5px;
+      text-transform:uppercase; color:#64748B; margin-bottom:8px;
+    }
+    .help-section + .help-section { margin-top:18px; padding-top:18px; border-top:1px solid #E2E8F0; }
+    .help-row { padding:8px 10px; border-radius:6px; transition: background .12s; }
+    .help-row:hover { background:#F8FAFC; }
+    .help-kbd {
+      display:inline-block; padding:1px 6px; min-width:18px; text-align:center;
+      background:#F1F5F9; border:1px solid #CBD5E1; border-radius:4px;
+      font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:600;
+      color:#475569; box-shadow:0 1px 0 #CBD5E1;
+    }
+  </style>
+</head>
+
+<body class="flex flex-col" style="height:100vh;">
+
+<!-- Overlay (shared by settings + help drawer) -->
+<div id="overlay" class="fixed inset-0 z-40" style="background:rgba(15,23,42,.25); backdrop-filter:blur(2px);" onclick="closeAllDrawers()"></div>
+
+<!-- ═══════════════════════════════════════════════════════
+     HELP DRAWER
+═══════════════════════════════════════════════════════ -->
+<div id="help-drawer" class="fixed right-0 top-0 h-full z-50 flex flex-col"
+     style="width:480px; max-width:100vw; background:#fff; border-left:1px solid #E2E8F0; box-shadow:-4px 0 24px rgba(0,0,0,.08);">
+  <div class="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+    <div>
+      <h2 class="font-display font-bold text-primary" style="font-size:17px;">Help & Guide</h2>
+      <p class="text-xs text-muted mt-0.5">Hover any UI element for an inline tooltip — full reference here.</p>
+    </div>
+    <button class="btn-icon" onclick="closeHelp()"><span class="msym">close</span></button>
+  </div>
+
+  <div class="flex-1 overflow-y-auto p-6 text-sm">
+
+    <div class="help-section">
+      <h3>Quick Start</h3>
+      <ol class="list-decimal pl-5 space-y-1.5 text-txt">
+        <li>Open <button class="text-info underline" onclick="closeHelp();openSettings()">Settings</button> and add at least a few API keys (free tiers cover most use).</li>
+        <li>Paste any IP / domain / URL / hash in the search bar &amp; press <span class="help-kbd">Enter</span>.</li>
+        <li>Watch the right pane for the live risk gauge &amp; verdict.</li>
+        <li>Expand any module card for full structured findings.</li>
+        <li>Use the <span class="msym sm">download</span> export menu to push results into your SIEM / TIP / ticket.</li>
+      </ol>
+    </div>
+
+    <div class="help-section">
+      <h3>Investigation Playbooks</h3>
+      <p class="text-muted mb-2">The chips under the search bar pre-select a curated set of modules for a specific scenario.</p>
+      <div class="space-y-1">
+        <div class="help-row"><strong>Full Profile</strong> — every applicable module. Most thorough, highest API usage.</div>
+        <div class="help-row"><strong>Quick Triage</strong> — only 4 reputation modules. ~64% fewer API calls than Full for IPs. Use when the alert queue is on fire.</div>
+        <div class="help-row"><strong>Phishing Triage</strong> — URL/domain modules + urlscan screenshot + WHOIS age check + 7-step phishing checklist.</div>
+        <div class="help-row"><strong>Ransomware IOC</strong> — VT + MalwareBazaar + ThreatFox + OTX + Shodan, with an IR checklist.</div>
+        <div class="help-row"><strong>C2 Infrastructure</strong> — Shodan + GreyNoise + WHOIS + DNS recon for command-and-control hunts.</div>
+      </div>
+      <p class="text-xs text-muted mt-2">Each playbook also pre-fills the analyst notes with a checklist tailored to that workflow.</p>
+    </div>
+
+    <div class="help-section">
+      <h3>Bulk IOC Extraction</h3>
+      <p class="text-muted">Click <span class="msym sm">queue</span> or press <span class="help-kbd">⌘B</span>. Paste an entire SIEM alert, email body, or log line — every IPv4, domain, URL, MD5, SHA1, SHA256 (including defanged forms like <code>8[.]8[.]8[.]8</code>, <code>hxxps://</code>) is auto-extracted. Pick which to investigate; each becomes its own history entry.</p>
+    </div>
+
+    <div class="help-section">
+      <h3>NIST CSF 2.0 Coverage</h3>
+      <p class="text-muted mb-2">Every module is mapped to one or more <a href="https://www.nist.gov/cyberframework" target="_blank" class="text-info underline">NIST Cybersecurity Framework 2.0</a> functions. The right pane shows which functions your investigation has touched:</p>
+      <div class="space-y-1">
+        <div class="help-row"><span class="csf-badge" style="background:#475569;">GV</span> <strong>Govern</strong> — strategy, expectations, policy</div>
+        <div class="help-row"><span class="csf-badge" style="background:#2563EB;">ID</span> <strong>Identify</strong> — assets, threats, vulnerabilities, risks</div>
+        <div class="help-row"><span class="csf-badge" style="background:#059669;">PR</span> <strong>Protect</strong> — safeguards to manage cybersecurity risk</div>
+        <div class="help-row"><span class="csf-badge" style="background:#D97706;">DE</span> <strong>Detect</strong> — find &amp; analyze possible attacks</div>
+        <div class="help-row"><span class="csf-badge" style="background:#DC2626;">RS</span> <strong>Respond</strong> — take action on detected incidents</div>
+        <div class="help-row"><span class="csf-badge" style="background:#7C3AED;">RC</span> <strong>Recover</strong> — restore assets &amp; operations</div>
+      </div>
+      <p class="text-xs text-muted mt-2">Use the "NIST CSF 2.0 report" export for a markdown report organized by function — perfect for compliance reporting or board updates.</p>
+    </div>
+
+    <div class="help-section">
+      <h3>MITRE ATT&CK</h3>
+      <p class="text-muted">When AlienVault OTX returns pulses tagged with ATT&CK technique IDs (<code>T1071</code>, <code>T1486</code>, etc.), they appear as clickable chips on the OTX card. Use the <strong>ATT&CK Navigator layer</strong> export to drop the techniques into the <a href="https://mitre-attack.github.io/attack-navigator/" target="_blank" class="text-info underline">MITRE ATT&CK Navigator</a> for visual heat-mapping.</p>
+    </div>
+
+    <div class="help-section">
+      <h3>CISA KEV + CVE Enrichment</h3>
+      <p class="text-muted">When Shodan returns CVEs on a host, ThreatSpan automatically:</p>
+      <ul class="list-disc pl-5 mt-1 text-muted space-y-1">
+        <li>Cross-references against the <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" class="text-info underline">CISA KEV catalog</a> — actively-exploited CVEs get a red badge.</li>
+        <li>Pulls CVSS v3.1 scores + severity from NIST NVD.</li>
+        <li>Links each CVE to its NVD detail page.</li>
+        <li>Bumps the Shodan risk score for ransomware-associated KEVs.</li>
+      </ul>
+    </div>
+
+    <div class="help-section">
+      <h3>Keyboard Shortcuts</h3>
+      <div class="space-y-1 text-txt">
+        <div class="help-row flex items-center justify-between"><span>Focus search</span> <span><span class="help-kbd">/</span> or <span class="help-kbd">⌘K</span></span></div>
+        <div class="help-row flex items-center justify-between"><span>Run investigation</span> <span class="help-kbd">Enter</span></div>
+        <div class="help-row flex items-center justify-between"><span>New investigation</span> <span class="help-kbd">⌘N</span></div>
+        <div class="help-row flex items-center justify-between"><span>Bulk IOC extraction</span> <span class="help-kbd">⌘B</span></div>
+        <div class="help-row flex items-center justify-between"><span>Paste &amp; analyze clipboard</span> <span class="help-kbd">⌘⇧V</span></div>
+        <div class="help-row flex items-center justify-between"><span>Cancel scan / close modal</span> <span class="help-kbd">Esc</span></div>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <h3>URL Parameters</h3>
+      <p class="text-muted">Wire ThreatSpan into any tool that opens URLs (macOS Shortcuts, Raycast, Alfred, browser bookmarklets):</p>
+      <pre class="mt-2 p-2 bg-surf-low rounded text-xs font-mono text-txt overflow-x-auto">http://localhost:3000/?ioc=8.8.8.8&playbook=quick</pre>
+      <p class="text-xs text-muted mt-1.5">Auto-fills the search bar, applies the playbook, and starts the investigation.</p>
+    </div>
+
+    <div class="help-section">
+      <h3>Privacy &amp; Security</h3>
+      <p class="text-muted">Server only listens on <code>127.0.0.1</code> — not reachable from your network. API keys live in <code>localStorage</code> and only travel to their respective providers (proxied via the local server to bypass CORS). No telemetry, no cloud, no phone-home.</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     BULK IOC MODAL
+═══════════════════════════════════════════════════════ -->
+<div id="bulk-overlay" class="fixed inset-0 z-40" style="background:rgba(15,23,42,.35); backdrop-filter:blur(3px);" onclick="closeBulkModal()"></div>
+<div id="bulk-modal" class="fixed z-50" style="top:50%; left:50%; transform-origin:center; width:560px; max-width:calc(100vw - 32px); max-height:calc(100vh - 80px); margin-left:-280px; margin-top:-280px; background:#fff; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.20); display:flex; flex-direction:column;">
+  <div class="px-5 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
+    <div>
+      <h2 class="font-display font-bold text-primary" style="font-size:16px;">Bulk IOC Extraction</h2>
+      <p class="text-xs text-muted mt-0.5">Paste a SIEM alert, log line, or email body — IOCs are auto-detected</p>
+    </div>
+    <button class="btn-icon" onclick="closeBulkModal()"><span class="msym">close</span></button>
+  </div>
+  <div class="p-5 overflow-y-auto flex-1">
+    <textarea id="bulk-input" class="bulk-textarea" placeholder="Paste anything containing IOCs… emails, alerts, threat reports, log lines.&#10;&#10;Defanged values like 8[.]8[.]8[.]8 or hxxps://example[.]com are automatically refanged."></textarea>
+    <div class="flex items-center gap-2 mt-3">
+      <button class="btn-primary" style="padding:7px 14px; font-size:12px;" onclick="extractBulkIOCs()">
+        <span class="msym sm">filter_alt</span> Extract IOCs
+      </button>
+      <button class="btn-ghost" style="padding:6px 12px; font-size:12px;" onclick="document.getElementById('bulk-input').value=''">Clear</button>
+      <span id="bulk-extract-summary" class="text-xs text-muted ml-1"></span>
+    </div>
+
+    <div id="bulk-results" class="mt-4 hidden">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-xs font-bold uppercase tracking-widest text-muted">Detected IOCs</h3>
+        <div class="flex items-center gap-2">
+          <button class="btn-ghost" style="padding:4px 10px; font-size:11px;" onclick="bulkSelectAll(true)">Select all</button>
+          <button class="btn-ghost" style="padding:4px 10px; font-size:11px;" onclick="bulkSelectAll(false)">None</button>
+        </div>
+      </div>
+      <div id="bulk-list" class="space-y-1 max-h-72 overflow-y-auto"></div>
+    </div>
+
+    <div id="bulk-progress-section" class="mt-4 hidden">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-medium" id="bulk-progress-label">Investigating…</span>
+        <span class="text-xs text-muted" id="bulk-progress-count">0/0</span>
+      </div>
+      <div class="bulk-progress"><div class="bulk-progress-fill" id="bulk-progress-fill" style="width:0%;"></div></div>
+    </div>
+  </div>
+  <div class="px-5 py-4 border-t border-border flex-shrink-0 flex items-center justify-between">
+    <span class="text-xs text-muted">Each IOC becomes its own investigation (saved to history)</span>
+    <button id="bulk-run-btn" class="btn-primary" style="padding:7px 14px; font-size:12px;" onclick="runBulkInvestigations()" disabled>
+      <span class="msym sm">play_arrow</span> Investigate Selected
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SETTINGS DRAWER
+═══════════════════════════════════════════════════════ -->
+<div id="settings-drawer" class="fixed right-0 top-0 h-full z-50 flex flex-col"
+     style="width:420px; background:#fff; border-left:1px solid #E2E8F0; box-shadow:-4px 0 24px rgba(0,0,0,.08);">
+  <div class="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+    <div>
+      <h2 class="font-display font-bold text-primary" style="font-size:17px;">Settings</h2>
+      <p class="text-xs text-muted mt-0.5">API keys stored in your browser (localStorage)</p>
+    </div>
+    <button class="btn-icon" onclick="closeSettings()"><span class="msym">close</span></button>
+  </div>
+
+  <div class="flex-1 overflow-y-auto p-6 space-y-6">
+
+    <!-- Connection mode notice -->
+    <div id="mode-notice" class="rounded-xl p-3 text-xs font-medium" style="background:#F0FDF4; color:#065F46; border:1px solid #BBF7D0;">
+      <div class="font-bold mb-1 flex items-center gap-1.5"><span class="msym sm">check_circle</span> Server mode active</div>
+      API calls are proxied through <code>localhost</code> — all keys will work correctly.
+    </div>
+
+    <!-- API Keys -->
+    <div>
+      <h3 class="text-xs font-bold uppercase tracking-widest text-muted mb-4">API Keys — Reputation Modules</h3>
+      <div class="space-y-5" id="api-key-fields"></div>
+    </div>
+
+    <hr class="border-border">
+
+    <div>
+      <h3 class="text-xs font-bold uppercase tracking-widest text-muted mb-3">Free Modules (no key needed)</h3>
+      <div class="space-y-2 text-sm text-muted">
+        <div class="flex items-center gap-2"><span class="msym sm text-safe">check_circle</span> GeoIP — ipwho.is</div>
+        <div class="flex items-center gap-2"><span class="msym sm text-safe">check_circle</span> DNS Lookups — Cloudflare DoH</div>
+        <div class="flex items-center gap-2"><span class="msym sm text-safe">check_circle</span> WHOIS / RDAP — ARIN / RDAP.org</div>
+        <div class="flex items-center gap-2"><span class="msym sm text-safe">check_circle</span> Sucuri SiteCheck</div>
+      </div>
+    </div>
+
+    <hr class="border-border">
+
+    <div>
+      <h3 class="text-xs font-bold uppercase tracking-widest text-muted mb-3">Preferences</h3>
+      <label class="flex items-center gap-3 cursor-pointer select-none" onclick="togglePrefDefang()">
+        <div class="toggle-track" id="defang-track"><div class="toggle-thumb"></div></div>
+        <div>
+          <div class="text-sm font-medium text-txt">Auto-defang IOCs in display</div>
+          <div class="text-xs text-muted">Shows 198.51.100[.]42 format in output</div>
+        </div>
+      </label>
+    </div>
+
+    <hr class="border-border">
+
+    <div>
+      <h3 class="text-xs font-bold uppercase tracking-widest text-muted mb-3">Data Management</h3>
+      <div class="space-y-2">
+        <button class="btn-ghost w-full justify-start text-muted" onclick="clearHistory()">
+          <span class="msym sm">delete_sweep</span> Clear investigation history
+        </button>
+        <button class="btn-ghost w-full justify-start" style="color:#DC2626; border-color:#FECACA;" onclick="clearAllData()">
+          <span class="msym sm">warning</span> Clear all data &amp; API keys
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="px-6 py-4 border-t border-border flex-shrink-0">
+    <button class="btn-primary w-full justify-center" onclick="saveSettings()">
+      <span class="msym sm">save</span> Save Settings
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     HEADER
+═══════════════════════════════════════════════════════ -->
+<header class="flex-shrink-0 flex items-center justify-between px-5 border-b border-border bg-surface"
+        style="height:54px; position:relative; z-index:30;">
+  <div class="flex items-center gap-4">
+    <span class="font-display font-bold text-primary tracking-tight" style="font-size:15px; letter-spacing:-.5px;">
+      THREATSPAN
+    </span>
+    <div class="h-4 w-px bg-border mx-1"></div>
+    <span class="text-xs font-semibold text-muted">Investigation Console</span>
+  </div>
+  <div class="flex items-center gap-1.5">
+    <!-- Running indicator -->
+    <div id="scan-status-bar" class="hidden items-center gap-2 mr-2 text-xs text-muted font-medium">
+      <span class="w-1.5 h-1.5 rounded-full bg-info pulse" style="display:inline-block;"></span>
+      <span id="scan-status-text">Scanning…</span>
+    </div>
+    <button class="btn-icon tip tip-bottom" onclick="openHelp()" data-tip="Help & guided tour"><span class="msym">help_outline</span></button>
+    <div class="relative">
+      <button class="btn-icon tip tip-bottom" onclick="toggleExportMenu(event)" data-tip="Export current investigation in 7 formats: TXT, MD, JSON, STIX 2.1, MISP, ATT&CK Navigator, NIST CSF, plus history CSV"><span class="msym">download</span></button>
+      <div id="export-menu-header" class="export-menu" onclick="event.stopPropagation()">
+        <button onclick="exportReport('txt')"><span class="msym sm">description</span> Plain text (.txt)</button>
+        <button onclick="exportReport('md')"><span class="msym sm">article</span> Markdown (.md)</button>
+        <button onclick="exportReport('json')"><span class="msym sm">data_object</span> JSON (.json)</button>
+        <button onclick="exportReport('stix')"><span class="msym sm">share</span> STIX 2.1 bundle</button>
+        <button onclick="exportReport('misp')"><span class="msym sm">workspaces</span> MISP event</button>
+        <button onclick="exportReport('navigator')"><span class="msym sm">shield</span> ATT&CK Navigator layer</button>
+        <button onclick="exportReport('csf')"><span class="msym sm">account_tree</span> NIST CSF 2.0 report</button>
+        <button onclick="exportReport('csv')"><span class="msym sm">table_chart</span> CSV (history)</button>
+      </div>
+    </div>
+    <button class="btn-icon tip tip-bottom" onclick="openSettings()" data-tip="API keys & preferences"><span class="msym">settings</span></button>
+    <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ml-1"
+         style="background:#0F172A; flex-shrink:0;">L2</div>
+  </div>
+</header>
+
+<!-- Connection banner (shown when not running through server) -->
+<div id="conn-banner" class="flex-shrink-0 items-center gap-3 px-5 py-2.5 text-xs font-medium"
+     style="background:#FFFBEB; color:#92400E; border-bottom:1px solid #FDE68A;">
+  <span class="msym sm" style="color:#D97706;">warning</span>
+  <span>Running as a local file — API calls may fail due to browser CORS restrictions.
+    <strong>Run <code style="background:#FEF3C7; padding:1px 5px; border-radius:3px;">node server.js</code> and open <a href="http://localhost:3000" style="text-decoration:underline;">localhost:3000</a> for full functionality.</strong>
+  </span>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     MAIN 3-PANE LAYOUT
+═══════════════════════════════════════════════════════ -->
+<main class="flex min-h-0" style="flex:1; overflow:hidden;">
+
+  <!-- ─── LEFT PANE ────────────────────────────────────── -->
+  <aside class="flex-shrink-0 flex flex-col border-r border-border bg-surface"
+         style="width:264px; overflow:hidden;">
+
+    <div class="flex-shrink-0 px-3 pt-3 pb-2 space-y-2">
+      <button class="btn-primary w-full justify-center" style="font-size:12px; padding:8px;" onclick="newInvestigation()">
+        <span class="msym sm">add</span> New Investigation
+      </button>
+      <div class="relative">
+        <span class="msym sm absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" style="pointer-events:none; font-size:14px;">search</span>
+        <input id="history-search" type="text" placeholder="Search history…" oninput="renderHistory()"
+          class="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border bg-surf-low placeholder-muted focus:outline-none focus:ring-1 focus:ring-primary"
+          style="font-size:12px;">
+      </div>
+      <div class="flex gap-1.5">
+        <button class="filter-chip" style="background:#FEF2F2; color:#DC2626;" onclick="toggleFilter('Malicious',this)">Malicious</button>
+        <button class="filter-chip" style="background:#FFFBEB; color:#D97706;" onclick="toggleFilter('Suspicious',this)">Suspicious</button>
+        <button class="filter-chip" style="background:#F0FDF4; color:#059669;" onclick="toggleFilter('Clean',this)">Clean</button>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto px-2 pb-2" id="history-list"></div>
+
+    <div class="flex-shrink-0 border-t border-border px-3 py-2">
+      <button class="btn-icon w-full flex items-center gap-2 px-2 py-1.5 text-xs text-muted rounded" onclick="openSettings()">
+        <span class="msym sm">vpn_key</span> API Keys &amp; Settings
+      </button>
+    </div>
+  </aside>
+
+  <!-- ─── CENTER PANE ──────────────────────────────────── -->
+  <section class="flex flex-col min-w-0" style="flex:1; overflow:hidden; background:#F6F8FA;">
+
+    <!-- Command Bar -->
+    <div class="flex-shrink-0 px-4 pt-3 pb-2">
+      <div class="relative" style="max-width:780px; margin:0 auto;">
+        <div id="ioc-bar" class="flex items-center bg-surface rounded-xl border-2 transition-all"
+             style="border-color:#0F172A; height:56px; box-shadow:0 0 0 4px rgba(15,23,42,.05), 0 2px 8px rgba(0,0,0,.06);">
+          <span class="msym lg flex-shrink-0 ml-4 mr-2" style="color:#94A3B8;" id="ioc-bar-icon">search</span>
+          <input id="ioc-input" type="text" placeholder="Enter IP, Domain, Hash, or URL…  (or paste a log/email for bulk extract)"
+            class="flex-1 bg-transparent border-none focus:ring-0 py-3 pr-2"
+            style="min-width:0;"
+            oninput="onIOCInput()" onkeydown="onIOCKeydown(event)" onpaste="onIOCPaste(event)">
+          <div class="flex items-center gap-1.5 mr-3 flex-shrink-0">
+            <span id="ioc-type-badge" class="hidden px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide"></span>
+            <button id="paste-btn" class="btn-icon tip tip-bottom" onclick="pasteFromClipboard()" data-tip="Paste from clipboard (⌘⇧V). One IOC → analyze it. Multi-IOC text → opens bulk extraction.">
+              <span class="msym sm">content_paste</span>
+            </button>
+            <button id="bulk-btn" class="btn-icon tip tip-bottom" onclick="openBulkModal()" data-tip="Bulk IOC extraction (⌘B). Paste a SIEM alert / email / log — auto-detects every IP, domain, URL & hash and queues them for investigation.">
+              <span class="msym sm">queue</span>
+            </button>
+            <button id="defang-btn" class="hidden btn-icon tip tip-bottom" onclick="toggleDefang()" data-tip="Defang / refang the IOC. Defanged form (8[.]8[.]8[.]8) is safe to paste in chat or tickets without triggering URL parsers.">
+              <span class="msym sm">security</span>
+            </button>
+            <button id="cancel-btn" class="hidden btn-icon tip tip-bottom" onclick="cancelScan()" data-tip="Cancel running scan (Esc)">
+              <span class="msym sm" style="color:#DC2626;">cancel</span>
+            </button>
+            <button id="analyze-btn" class="btn-primary tip tip-bottom" style="padding:7px 14px; font-size:12px;" onclick="analyzeIOC()" data-tip="Run investigation (Enter)">
+              Analyze
+            </button>
+          </div>
+        </div>
+        <!-- Playbook chips -->
+        <div class="flex items-center gap-1.5 mt-2 flex-wrap" id="playbook-chips"></div>
+      </div>
+    </div>
+
+    <!-- Module Cards / Empty State -->
+    <div class="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-5" id="center-content">
+
+      <!-- Empty state -->
+      <div id="empty-state" class="flex flex-col items-center justify-center" style="max-width:780px; margin:0 auto; min-height:360px; padding-top:40px;">
+        <div style="width:60px; height:60px; background:#EEF2F7; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:14px;">
+          <span class="msym xl" style="color:#94A3B8;">radar</span>
+        </div>
+        <h2 class="font-display font-bold text-primary" style="font-size:20px;">Awaiting Indicator</h2>
+        <p class="text-muted text-sm mt-1.5 text-center" style="max-width:300px;">Paste an IP, domain, URL, or file hash above to begin a deep-dive investigation.</p>
+        <div class="flex gap-2 mt-6">
+          <div style="background:#fff; border:1px solid #E2E8F0; border-radius:10px; padding:10px 14px; text-align:center; min-width:110px;">
+            <div class="font-mono text-muted text-xs mb-1">/</div>
+            <div class="text-muted font-medium text-xs">Focus input</div>
+          </div>
+          <div style="background:#fff; border:1px solid #E2E8F0; border-radius:10px; padding:10px 14px; text-align:center; min-width:110px;">
+            <div class="font-mono text-muted text-xs mb-1">Enter</div>
+            <div class="text-muted font-medium text-xs">Run analysis</div>
+          </div>
+          <div style="background:#fff; border:1px solid #E2E8F0; border-radius:10px; padding:10px 14px; text-align:center; min-width:110px;">
+            <div class="font-mono text-muted text-xs mb-1">Esc</div>
+            <div class="text-muted font-medium text-xs">Cancel scan</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Module cards container -->
+      <div id="module-cards" class="hidden" style="max-width:780px; margin:0 auto; display:none; flex-direction:column; gap:10px;"></div>
+    </div>
+  </section>
+
+  <!-- ─── RIGHT PANE ───────────────────────────────────── -->
+  <aside class="flex-shrink-0 flex flex-col border-l border-border bg-surface"
+         style="width:300px; overflow:hidden;">
+    <div class="flex-1 overflow-y-auto">
+
+      <!-- Threat Assessment -->
+      <div class="px-4 pt-4 pb-3 border-b border-border">
+        <div class="text-xs font-bold uppercase tracking-widest text-muted mb-3">Threat Assessment</div>
+        <div class="flex flex-col items-center">
+          <!-- Gauge -->
+          <div class="relative" style="width:170px; height:90px; overflow:hidden;">
+            <svg viewBox="0 0 100 55" width="170" height="90" style="overflow:visible;">
+              <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#E2E8F0" stroke-width="7" stroke-linecap="round"/>
+              <path id="gauge-arc" d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#E2E8F0" stroke-width="7"
+                stroke-linecap="round" stroke-dasharray="125.6" stroke-dashoffset="125.6"/>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-end" style="padding-bottom:2px;">
+              <span id="gauge-score" class="font-display font-bold leading-none" style="font-size:33px; color:#94A3B8;">--</span>
+            </div>
+          </div>
+          <div class="flex justify-between w-full px-1 mt-1"
+               style="font-size:9px; color:#94A3B8; font-weight:700; letter-spacing:.5px; text-transform:uppercase;">
+            <span>Safe</span><span>Neutral</span><span>Critical</span>
+          </div>
+          <div id="verdict-badge" class="mt-2 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
+               style="background:#F1F5F9; color:#94A3B8;">No Assessment</div>
+        </div>
+      </div>
+
+      <!-- Risk Indicators -->
+      <div class="px-4 py-3 border-b border-border">
+        <div class="text-xs font-bold uppercase tracking-widest text-muted mb-2">Risk Indicators</div>
+        <div id="risk-indicators" class="space-y-1.5">
+          <div class="text-xs text-muted italic">Run an investigation to see risk indicators.</div>
+        </div>
+      </div>
+
+      <!-- NIST CSF 2.0 Coverage -->
+      <div class="px-4 py-3 border-b border-border">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold uppercase tracking-widest text-muted">NIST CSF Coverage</span>
+          <span class="msym sm tip text-muted" data-tip="NIST Cybersecurity Framework 2.0 — shows which of the 6 functions this investigation has touched. Click each cell for details." style="cursor:help;font-size:13px;">help_outline</span>
+        </div>
+        <div id="csf-coverage" class="csf-coverage"></div>
+      </div>
+
+      <!-- Response Actions -->
+      <div class="px-4 py-3 border-b border-border">
+        <div class="text-xs font-bold uppercase tracking-widest text-muted mb-2">Response Actions</div>
+        <div id="action-buttons" class="space-y-1.5"></div>
+      </div>
+
+      <!-- Analyst Notes -->
+      <div class="px-4 py-3 border-b border-border">
+        <div class="text-xs font-bold uppercase tracking-widest text-muted mb-2">Analyst Notes</div>
+        <textarea id="analyst-notes" rows="3" placeholder="Add investigation notes…"
+          class="w-full rounded-lg border border-border px-2.5 py-2 text-xs bg-surf-low placeholder-muted"
+          oninput="saveNotes()"></textarea>
+        <div class="mt-1.5 flex items-center justify-between text-xs text-muted">
+          <div id="audit-info" class="truncate">No active investigation</div>
+          <div class="relative">
+            <button class="btn-icon flex items-center gap-1" style="font-size:11px; padding:2px 6px;" onclick="toggleExportMenu(event, 'right')">
+              <span class="msym sm">download</span> Export
+            </button>
+            <div id="export-menu-right" class="export-menu" style="right:0; top:auto; bottom:100%; margin-bottom:6px;" onclick="event.stopPropagation()">
+              <button onclick="exportReport('txt')"><span class="msym sm">description</span> Plain text (.txt)</button>
+              <button onclick="exportReport('md')"><span class="msym sm">article</span> Markdown (.md)</button>
+              <button onclick="exportReport('json')"><span class="msym sm">data_object</span> JSON (.json)</button>
+              <button onclick="exportReport('stix')"><span class="msym sm">share</span> STIX 2.1 bundle</button>
+              <button onclick="exportReport('misp')"><span class="msym sm">workspaces</span> MISP event</button>
+        <button onclick="exportReport('navigator')"><span class="msym sm">shield</span> ATT&CK Navigator layer</button>
+        <button onclick="exportReport('csf')"><span class="msym sm">account_tree</span> NIST CSF 2.0 report</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System status -->
+      <div class="px-4 py-3">
+        <div class="text-xs font-bold uppercase tracking-widest text-muted mb-2">System</div>
+        <div class="space-y-1.5 text-xs">
+          <div class="flex justify-between items-center">
+            <span class="text-muted">GeoIP (ipwho.is)</span>
+            <span class="text-safe font-semibold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-safe inline-block"></span>Ready</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-muted">DNS (Cloudflare)</span>
+            <span class="text-safe font-semibold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-safe inline-block"></span>Ready</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-muted">RDAP (ARIN)</span>
+            <span class="text-safe font-semibold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-safe inline-block"></span>Ready</span>
+          </div>
+          <div id="server-status" class="flex justify-between items-center">
+            <span class="text-muted">Proxy Server</span>
+            <span id="server-status-val" class="font-semibold flex items-center gap-1 text-muted">
+              <span class="w-1.5 h-1.5 rounded-full bg-border inline-block" id="server-dot"></span>Checking…
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+</main>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ────────────────────────────────────────────────────────
+// PROXY-AWARE FETCH
+// When running through node server.js (localhost) all API calls
+// are routed through /api/proxy, which solves CORS completely.
+// When opened directly as file://, we attempt direct fetch and
+// show a warning banner.
+// ────────────────────────────────────────────────────────
+const IS_LOCAL_SERVER = (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1'
+);
+
+function mkFetch(url, options = {}) {
+  if (IS_LOCAL_SERVER) {
+    const proxyUrl = '/api/proxy?url=' + encodeURIComponent(url);
+    return fetch(proxyUrl, options);
+  }
+  // Direct fetch (may fail on some APIs due to CORS)
+  return fetch(url, options);
+}
+
+// ────────────────────────────────────────────────────────
+// CONSTANTS
+// ────────────────────────────────────────────────────────
+const GAUGE_ARC = 125.6;
+
+// NIST CSF 2.0 functions — colors picked to be distinct and accessible
+const CSF_FUNCTIONS = {
+  GV: { id:'GV', name:'Govern',   color:'#475569', desc:'Establish & monitor cybersecurity strategy, expectations & policy' },
+  ID: { id:'ID', name:'Identify', color:'#2563EB', desc:'Understand assets, threats, vulnerabilities & risks' },
+  PR: { id:'PR', name:'Protect',  color:'#059669', desc:'Safeguards to manage cybersecurity risk' },
+  DE: { id:'DE', name:'Detect',   color:'#D97706', desc:'Find & analyze possible cybersecurity attacks/compromises' },
+  RS: { id:'RS', name:'Respond',  color:'#DC2626', desc:'Take action regarding a detected cybersecurity incident' },
+  RC: { id:'RC', name:'Recover',  color:'#7C3AED', desc:'Restore assets & operations affected by an incident' },
+};
+
+const MODULE_DEFS = {
+  virustotal:  { id:'virustotal',  name:'VirusTotal',       icon:'security',       reqKey:true,  keyName:'vt',        weight:.30, csf:['ID','DE'], desc:'Reputation across 90+ AV engines + URL/file/IP scans' },
+  abuseipdb:   { id:'abuseipdb',   name:'AbuseIPDB',        icon:'gpp_maybe',      reqKey:true,  keyName:'abuseipdb', weight:.25, csf:['ID','DE'], desc:'Crowd-sourced IP abuse confidence & report categories' },
+  ipqs:        { id:'ipqs',        name:'IPQualityScore',   icon:'grade',          reqKey:true,  keyName:'ipqs',      weight:.15, csf:['ID','DE'], desc:'Fraud score, proxy/VPN/Tor/bot detection' },
+  shodan:      { id:'shodan',      name:'Shodan',           icon:'radar',          reqKey:true,  keyName:'shodan',    weight:0,   csf:['ID'],      desc:'Open ports, services, banners, CVEs on the host' },
+  greynoise:   { id:'greynoise',   name:'GreyNoise',        icon:'hearing',        reqKey:false, keyName:'greynoise', weight:.10, csf:['DE'],      desc:'Internet background noise + scanner classification' },
+  urlhaus:     { id:'urlhaus',     name:'URLhaus',          icon:'bug_report',     reqKey:true,  keyName:'abusech',   weight:.10, csf:['ID','DE'], desc:'Malicious URL database with tags + payloads' },
+  threatfox:   { id:'threatfox',   name:'ThreatFox',        icon:'pest_control',   reqKey:true,  keyName:'abusech',   weight:.05, csf:['ID','DE'], desc:'IOC threat intel sharing — malware family attribution' },
+  malwarebazaar:{ id:'malwarebazaar',name:'MalwareBazaar',  icon:'coronavirus',    reqKey:true,  keyName:'abusech',   weight:.05, csf:['ID'],      desc:'Malware sample database — file metadata, signatures, YARA' },
+  otx:         { id:'otx',         name:'AlienVault OTX',   icon:'hub',            reqKey:true,  keyName:'otx',       weight:0,   csf:['ID','DE'], desc:'Threat-intel pulses + MITRE ATT&CK technique tagging' },
+  sucuri:      { id:'sucuri',      name:'Sucuri SiteCheck', icon:'verified_user',  reqKey:false,                      weight:0,   csf:['ID','DE'], desc:'Website blacklist, malware & WAF check' },
+  urlscan:     { id:'urlscan',     name:'urlscan.io',       icon:'screenshot_monitor',reqKey:true, keyName:'urlscan', weight:0,   csf:['ID','DE'], desc:'Render URL, capture screenshot + DOM + network traffic' },
+  geoip:       { id:'geoip',       name:'GeoIP / ASN',      icon:'public',         reqKey:false,                      weight:0,   csf:['ID'],      desc:'Geographic location, ASN, ISP, hosting type' },
+  dns:         { id:'dns',         name:'DNS Lookup',        icon:'dns',            reqKey:false,                      weight:0,   csf:['ID'],      desc:'A, AAAA, MX, NS, TXT, PTR records via Cloudflare DoH' },
+  whois:       { id:'whois',       name:'WHOIS / RDAP',     icon:'person_search',  reqKey:false,                      weight:0,   csf:['ID'],      desc:'Registrar, registration date, network owner via RDAP' },
+};
+
+const TYPE_MODULES = {
+  'IPv4':   ['virustotal','abuseipdb','ipqs','greynoise','shodan','urlhaus','threatfox','otx','geoip','dns','whois'],
+  'IPv6':   ['virustotal','abuseipdb','ipqs','greynoise','urlhaus','threatfox','otx','geoip','dns','whois'],
+  'Domain': ['virustotal','ipqs','urlhaus','threatfox','sucuri','urlscan','otx','dns','whois'],
+  'URL':    ['virustotal','ipqs','urlhaus','threatfox','sucuri','urlscan','otx','dns'],
+  'MD5':    ['virustotal','malwarebazaar','threatfox','otx'],
+  'SHA1':   ['virustotal','malwarebazaar','threatfox','otx'],
+  'SHA256': ['virustotal','malwarebazaar','threatfox','otx'],
+};
+
+const PLAYBOOKS = {
+  full: {
+    id:'full', name:'Full Profile', icon:'radar',
+    desc:'Run every applicable module — comprehensive investigation',
+    modules: null, notes: ''
+  },
+  quick: {
+    id:'quick', name:'Quick Triage', icon:'bolt',
+    desc:'Fast triage — reputation only',
+    modules: ['virustotal','abuseipdb','greynoise','threatfox'],
+    notes: '## Quick Triage\n- [ ] Confirm risk score\n- [ ] Check for false positives\n- [ ] Decide: escalate / dismiss / monitor'
+  },
+  phishing: {
+    id:'phishing', name:'Phishing Triage', icon:'phishing',
+    desc:'URL/domain phishing investigation',
+    modules: ['virustotal','ipqs','urlhaus','threatfox','sucuri','urlscan','otx','dns','whois'],
+    notes: '## Phishing Triage\n- [ ] Confirm IOC source (email header, user report, SIEM)\n- [ ] Check WHOIS age (< 30 days = high risk)\n- [ ] Verify SSL cert\n- [ ] Capture screenshot via urlscan\n- [ ] Block at proxy / mail gateway\n- [ ] Notify affected user(s)\n- [ ] Hunt for related IOCs in SIEM'
+  },
+  ransomware: {
+    id:'ransomware', name:'Ransomware IOC', icon:'enhanced_encryption',
+    desc:'Ransomware sample / C2 lookup',
+    modules: ['virustotal','malwarebazaar','threatfox','otx','abuseipdb','ipqs','shodan'],
+    notes: '## Ransomware IOC Sweep\n- [ ] Identify malware family\n- [ ] Map to known TTPs (MITRE ATT&CK)\n- [ ] Search SIEM for associated IOCs\n- [ ] Isolate affected hosts\n- [ ] Snapshot encrypted systems for forensics\n- [ ] Notify IR team / leadership\n- [ ] Check threat actor leak site for victim listing'
+  },
+  c2: {
+    id:'c2', name:'C2 Infrastructure', icon:'hub',
+    desc:'Command & control infrastructure recon',
+    modules: ['virustotal','abuseipdb','greynoise','shodan','urlhaus','threatfox','otx','geoip','dns','whois'],
+    notes: '## C2 Infrastructure Investigation\n- [ ] Identify hosting provider / ASN\n- [ ] Check open ports & services (Shodan)\n- [ ] Map associated domains / subdomains\n- [ ] Check passive DNS history\n- [ ] Search for related IOCs in OTX pulses\n- [ ] Block at firewall / EDR\n- [ ] Submit to internal threat intel platform'
+  },
+};
+
+const VERDICTS = [
+  { max:24,  label:'Clean',        color:'#059669', bg:'#F0FDF4', gc:'#059669' },
+  { max:49,  label:'Likely Clean', color:'#0284C7', bg:'#F0F9FF', gc:'#0284C7' },
+  { max:74,  label:'Suspicious',   color:'#D97706', bg:'#FFFBEB', gc:'#D97706' },
+  { max:100, label:'Malicious',    color:'#DC2626', bg:'#FEF2F2', gc:'#DC2626' },
+];
+
+const KEY_DEFS = [
+  { keyName:'vt',       label:'VirusTotal',     hint:'API v3 public key — virustotal.com/gui/user/apikey',      placeholder:'64-character hex key' },
+  { keyName:'abuseipdb',label:'AbuseIPDB',       hint:'API v2 key — abuseipdb.com/account/api',                  placeholder:'80-character key' },
+  { keyName:'ipqs',     label:'IPQualityScore',  hint:'Private key — ipqualityscore.com/user/settings',          placeholder:'20-character key' },
+  { keyName:'shodan',   label:'Shodan',          hint:'API key — account.shodan.io',                             placeholder:'32-character key' },
+  { keyName:'greynoise',label:'GreyNoise',       hint:'Optional — works without key (10/day) · with key (50/week) — viz.greynoise.io/account/api-key', placeholder:'Optional API key' },
+  { keyName:'otx',      label:'AlienVault OTX',  hint:'API key — otx.alienvault.com/settings',                   placeholder:'64-character hex key' },
+  { keyName:'abusech',  label:'abuse.ch',        hint:'Shared key for URLhaus, ThreatFox, MalwareBazaar — auth.abuse.ch', placeholder:'Auth-Key' },
+  { keyName:'urlscan',  label:'urlscan.io',      hint:'API key — urlscan.io/user/profile (free public scans)',   placeholder:'UUID-format key' },
+];
+
+const ABUSE_CATS = {
+  3:'Fraud Orders',4:'DDoS Attack',5:'FTP Brute-Force',7:'Phishing',9:'Open Proxy',
+  10:'Web Spam',11:'Email Spam',14:'Port Scan',15:'Hacking',16:'SQL Injection',
+  17:'Spoofing',18:'Brute Force',19:'Bad Web Bot',20:'Exploited Host',21:'Web App Attack',22:'SSH',23:'IoT Targeted'
+};
+
+// ────────────────────────────────────────────────────────
+// STATE
+// ────────────────────────────────────────────────────────
+let state = {
+  investigations: [],
+  apiKeys:        {},
+  prefs:          { defang: false },
+  current:        null,
+};
+let scanRunning        = false;
+let abortController    = null;
+let activeFilters      = new Set();
+const keyStatus        = {};
+let currentDefanged    = false;
+let activePlaybook     = 'full';
+let bulkQueue          = [];
+let bulkRunning        = false;
+
+// ────────────────────────────────────────────────────────
+// STORAGE
+// ────────────────────────────────────────────────────────
+function loadState() {
+  try { state.investigations = JSON.parse(localStorage.getItem('threatspan_inv')   || '[]'); } catch { state.investigations = []; }
+  try { state.apiKeys        = JSON.parse(localStorage.getItem('threatspan_keys')  || '{}'); } catch { state.apiKeys = {}; }
+  try { state.prefs          = Object.assign({defang:false}, JSON.parse(localStorage.getItem('threatspan_prefs') || '{}')); } catch { state.prefs = {defang:false}; }
+}
+function saveInvestigations() { localStorage.setItem('threatspan_inv',   JSON.stringify(state.investigations.slice(0,50))); }
+function saveApiKeys()        { localStorage.setItem('threatspan_keys',  JSON.stringify(state.apiKeys)); }
+function savePrefsData()      { localStorage.setItem('threatspan_prefs', JSON.stringify(state.prefs)); }
+
+// ────────────────────────────────────────────────────────
+// IOC UTILITIES
+// ────────────────────────────────────────────────────────
+function refang(s) {
+  return s
+    .replace(/\[\.\]/g, '.').replace(/\(\.\)/g, '.').replace(/\(dot\)/gi, '.')
+    .replace(/\[:\]/g, ':')
+    .replace(/hxxp/gi, 'http')
+    .replace(/\s/g, '');
+}
+
+function defangStr(s, type) {
+  if (type === 'URL')    return s.replace(/^http/, 'hxxp').replace(/\./g, '[.]');
+  if (type === 'Domain') return s.replace(/\./g, '[.]');
+  if (type === 'IPv4' || type === 'IPv6') return s.replace(/\./g, '[.]');
+  return s;
+}
+
+function detectType(raw) {
+  const v = refang(raw.trim());
+  if (!v) return null;
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(v) && v.split('.').map(Number).every(n => n >= 0 && n <= 255)) return 'IPv4';
+  if (/^[0-9a-fA-F:]{7,39}$/.test(v) && v.includes(':')) return 'IPv6';
+  if (/^[a-fA-F0-9]{64}$/.test(v)) return 'SHA256';
+  if (/^[a-fA-F0-9]{40}$/.test(v)) return 'SHA1';
+  if (/^[a-fA-F0-9]{32}$/.test(v)) return 'MD5';
+  if (/^https?:\/\//i.test(v)) return 'URL';
+  if (/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(v)) return 'Domain';
+  return null;
+}
+
+function extractHost(url) {
+  try { return new URL(url).hostname; } catch { return url; }
+}
+
+function getDisplayIOC(ioc, type) {
+  return state.prefs.defang ? defangStr(ioc, type) : ioc;
+}
+
+// ────────────────────────────────────────────────────────
+// RISK SCORING
+// ────────────────────────────────────────────────────────
+function computeRiskScore(modules) {
+  let totalW = 0, sumW = 0;
+  for (const [id, mod] of Object.entries(modules)) {
+    const def = MODULE_DEFS[id];
+    if (!def || def.weight === 0 || mod.status !== 'complete' || mod.score == null) continue;
+    sumW   += def.weight * mod.score;
+    totalW += def.weight;
+  }
+  return totalW === 0 ? null : Math.round(sumW / totalW);
+}
+
+function getVerdict(score) {
+  if (score == null) return null;
+  return VERDICTS.find(t => score <= t.max) || VERDICTS[3];
+}
+
+// ────────────────────────────────────────────────────────
+// MITRE / CISA KEV / NVD CVE ENRICHMENT
+// ────────────────────────────────────────────────────────
+let kevCache = null;
+let kevLoading = null;
+const nvdCache = new Map(); // cveId → { score, severity, vector, summary, published }
+
+async function loadKEV() {
+  if (kevCache) return kevCache;
+  if (kevLoading) return kevLoading;
+  kevLoading = (async () => {
+    try {
+      const r = await mkFetch('https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json');
+      if (!r.ok) throw new Error('KEV fetch failed');
+      const j = await r.json();
+      const map = new Map();
+      for (const v of j.vulnerabilities || []) {
+        map.set(v.cveID, {
+          dateAdded: v.dateAdded,
+          dueDate:   v.dueDate,
+          ransomware: (v.knownRansomwareCampaignUse || '').toLowerCase() === 'known',
+          product:   `${v.vendorProject} ${v.product}`.trim(),
+          name:      v.vulnerabilityName,
+          action:    v.requiredAction,
+          desc:      v.shortDescription,
+        });
+      }
+      kevCache = map;
+      return map;
+    } catch (e) {
+      console.warn('[KEV]', e.message);
+      kevCache = new Map();
+      return kevCache;
+    } finally {
+      kevLoading = null;
+    }
+  })();
+  return kevLoading;
+}
+
+async function fetchCVE(cveId) {
+  if (!/^CVE-\d{4}-\d{4,}$/i.test(cveId)) return null;
+  cveId = cveId.toUpperCase();
+  if (nvdCache.has(cveId)) return nvdCache.get(cveId);
+  try {
+    const r = await mkFetch(`https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=${cveId}`);
+    if (!r.ok) { nvdCache.set(cveId, null); return null; }
+    const j = await r.json();
+    const cve = j.vulnerabilities?.[0]?.cve;
+    if (!cve) { nvdCache.set(cveId, null); return null; }
+    const desc = (cve.descriptions || []).find(d => d.lang === 'en')?.value || '';
+    const m = cve.metrics || {};
+    const cvss = m.cvssMetricV31?.[0]?.cvssData || m.cvssMetricV30?.[0]?.cvssData || m.cvssMetricV2?.[0]?.cvssData;
+    const data = {
+      id: cveId,
+      score: cvss?.baseScore ?? null,
+      severity: cvss?.baseSeverity || (cvss?.baseScore != null ? cvssToSeverity(cvss.baseScore) : null),
+      vector: cvss?.attackVector || cvss?.accessVector || null,
+      summary: desc.length > 220 ? desc.slice(0,220) + '…' : desc,
+      published: (cve.published || '').slice(0,10),
+    };
+    nvdCache.set(cveId, data);
+    return data;
+  } catch {
+    nvdCache.set(cveId, null);
+    return null;
+  }
+}
+function cvssToSeverity(s) {
+  if (s >= 9.0) return 'CRITICAL';
+  if (s >= 7.0) return 'HIGH';
+  if (s >= 4.0) return 'MEDIUM';
+  if (s > 0)    return 'LOW';
+  return 'NONE';
+}
+function severityColor(sev) {
+  return { CRITICAL:'#DC2626', HIGH:'#EA580C', MEDIUM:'#D97706', LOW:'#65A30D', NONE:'#94A3B8' }[sev] || '#94A3B8';
+}
+
+async function enrichCVEs(cveList) {
+  // Throttle to respect NVD's 5-req/30s anonymous limit
+  const kev = await loadKEV();
+  const enriched = [];
+  for (let i = 0; i < cveList.length; i++) {
+    const id = cveList[i];
+    const [nvd] = await Promise.all([
+      fetchCVE(id),
+      i > 0 && i % 5 === 0 ? new Promise(r => setTimeout(r, 6500)) : Promise.resolve()
+    ]);
+    enriched.push({ id, kev: kev.get(id.toUpperCase()) || null, nvd });
+  }
+  return enriched;
+}
+
+// MITRE ATT&CK technique parsing
+function parseAttackIds(arr) {
+  if (!arr) return [];
+  const out = new Set();
+  for (const a of arr) {
+    const id = typeof a === 'string' ? a : (a.id || a.technique_id || a.attack_id);
+    if (id && /^T\d{4}(\.\d{3})?$/.test(id)) out.add(id);
+  }
+  return [...out].sort();
+}
+function attackUrl(id) {
+  const [parent, sub] = id.split('.');
+  return sub
+    ? `https://attack.mitre.org/techniques/${parent}/${sub}/`
+    : `https://attack.mitre.org/techniques/${parent}/`;
+}
+
+// ────────────────────────────────────────────────────────
+// API MODULES
+// ────────────────────────────────────────────────────────
+
+async function queryVirusTotal(ioc, type, signal) {
+  const key = state.apiKeys.vt;
+  if (!key) return { status:'no_key', summary:'No API key — add in Settings', score:null };
+  const t0 = Date.now();
+  try {
+    let endpoint;
+    if      (type === 'IPv4' || type === 'IPv6') endpoint = `https://www.virustotal.com/api/v3/ip_addresses/${encodeURIComponent(ioc)}`;
+    else if (type === 'Domain')                  endpoint = `https://www.virustotal.com/api/v3/domains/${encodeURIComponent(ioc)}`;
+    else if (type === 'URL') {
+      const b64 = btoa(ioc).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+      endpoint = `https://www.virustotal.com/api/v3/urls/${b64}`;
+    } else {
+      endpoint = `https://www.virustotal.com/api/v3/files/${ioc.toLowerCase()}`;
+    }
+
+    const r = await mkFetch(endpoint, { headers:{ 'x-apikey': key }, signal });
+    const dur = Date.now() - t0;
+
+    if (r.status === 404) return { status:'complete', summary:'Not found in VirusTotal database', score:0, data:{ found:false }, duration:dur };
+    if (r.status === 401) return { status:'error', summary:'Invalid or expired API key', score:null, duration:dur };
+    if (r.status === 429) return { status:'error', summary:'Rate limit reached — daily quota exceeded', score:null, duration:dur };
+    if (!r.ok)            return { status:'error', summary:`HTTP ${r.status} from VirusTotal`, score:null, duration:dur };
+
+    const j    = await r.json();
+    const attr  = j.data?.attributes || {};
+    const stats = attr.last_analysis_stats || {};
+    const mal   = stats.malicious  || 0;
+    const sus   = stats.suspicious || 0;
+    const harm  = stats.harmless   || 0;
+    const undet = stats.undetected || 0;
+    const total = mal + sus + harm + undet + (stats.timeout || 0);
+    const ratio = total > 0 ? mal / total : 0;
+    const score = Math.min(100, Math.round(ratio * 110 + (sus / (total || 1)) * 20));
+
+    const engines = attr.last_analysis_results || {};
+    const flagged = Object.entries(engines)
+      .filter(([,v]) => v.category === 'malicious' || v.category === 'suspicious')
+      .slice(0,6)
+      .map(([name,v]) => ({ name, category:v.category, result:v.result }));
+
+    const lastScan = attr.last_analysis_date
+      ? new Date(attr.last_analysis_date * 1000).toISOString().split('T')[0] : 'Unknown';
+
+    return {
+      status:'complete',
+      summary: total > 0
+        ? `${mal}/${total} engines flagged${sus > 0 ? ` · ${sus} suspicious` : ''}`
+        : 'No analysis data available',
+      score: Math.min(100, score),
+      duration: dur,
+      data: { malicious:mal, suspicious:sus, harmless:harm, undetected:undet, total, lastScan,
+              flagged, country:attr.country, asOwner:attr.as_owner, network:attr.network, reputation:attr.reputation }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+async function queryAbuseIPDB(ioc, type, signal) {
+  if (type !== 'IPv4' && type !== 'IPv6') return { status:'na', summary:'Not applicable for this IOC type' };
+  const key = state.apiKeys.abuseipdb;
+  if (!key) return { status:'no_key', summary:'No API key — add in Settings', score:null };
+  const t0 = Date.now();
+  try {
+    const url = `https://api.abuseipdb.com/api/v2/check?ipAddress=${encodeURIComponent(ioc)}&maxAgeInDays=90&verbose`;
+    const r   = await mkFetch(url, { headers:{ 'Key': key, 'Accept':'application/json' }, signal });
+    const dur = Date.now() - t0;
+
+    if (r.status === 401) return { status:'error', summary:'Invalid API key', score:null, duration:dur };
+    if (r.status === 422) return { status:'error', summary:'Invalid IP address', score:null, duration:dur };
+    if (r.status === 429) return { status:'error', summary:'Rate limited', score:null, duration:dur };
+    if (!r.ok)            return { status:'error', summary:`HTTP ${r.status}`, score:null, duration:dur };
+
+    const j    = await r.json();
+    const d    = j.data || {};
+    const conf = d.abuseConfidenceScore ?? 0;
+    const reps = d.totalReports         ?? 0;
+    const last = d.lastReportedAt ? d.lastReportedAt.split('T')[0] : 'Never';
+    const cats = [...new Set((d.reports || []).flatMap(rp => rp.categories || []))]
+      .slice(0,5).map(c => ABUSE_CATS[c] || `Cat.${c}`).join(', ');
+
+    return {
+      status:'complete',
+      summary: `${conf}% confidence · ${reps.toLocaleString()} report${reps !== 1 ? 's' : ''}`,
+      score: conf,
+      duration: dur,
+      data: { confidence:conf, totalReports:reps, distinctUsers:d.numDistinctUsers, lastReported:last,
+              isp:d.isp, domain:d.domain, country:d.countryCode, usageType:d.usageType,
+              isWhitelisted:d.isWhitelisted, categories:cats || '—' }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+async function queryIPQS(ioc, type, signal) {
+  const key = state.apiKeys.ipqs;
+  if (!key) return { status:'no_key', summary:'No API key — add in Settings', score:null };
+  const t0 = Date.now();
+  try {
+    let url;
+    if      (type === 'IPv4' || type === 'IPv6') url = `https://www.ipqualityscore.com/api/json/ip/${key}/${encodeURIComponent(ioc)}`;
+    else if (type === 'URL')                      url = `https://www.ipqualityscore.com/api/json/url/${key}/${encodeURIComponent(ioc)}`;
+    else if (type === 'Domain')                   url = `https://www.ipqualityscore.com/api/json/url/${key}/${encodeURIComponent('http://'+ioc)}`;
+    else                                          return { status:'na', summary:'Not applicable for file hashes' };
+
+    const r   = await mkFetch(url, { signal });
+    const dur = Date.now() - t0;
+    if (!r.ok) return { status:'error', summary:`HTTP ${r.status}`, score:null, duration:dur };
+
+    const j = await r.json();
+    if (!j.success) return { status:'error', summary: j.message || 'IPQS error', score:null, duration:dur };
+
+    if (type === 'IPv4' || type === 'IPv6') {
+      const fraud = j.fraud_score ?? 0;
+      const flags = [];
+      if (j.proxy)        flags.push('Proxy');
+      if (j.vpn)          flags.push('VPN');
+      if (j.tor)          flags.push('Tor');
+      if (j.recent_abuse) flags.push('Recent Abuse');
+      if (j.bot_status)   flags.push('Bot');
+      return {
+        status:'complete',
+        summary: `Fraud score ${fraud}/100${flags.length ? ' · ' + flags.join(', ') : ''}`,
+        score: fraud, duration: dur,
+        data: { fraudScore:fraud, proxy:j.proxy, vpn:j.vpn, tor:j.tor, recentAbuse:j.recent_abuse,
+                bot:j.bot_status, isp:j.ISP, asn:j.ASN, org:j.organization,
+                location:[j.city,j.region,j.country_code].filter(Boolean).join(', '),
+                connectionType:j.connection_type, timezone:j.timezone }
+      };
+    } else {
+      const risk = j.risk_score ?? j.fraud_score ?? 0;
+      const flags = [];
+      if (j.phishing)  flags.push('Phishing');
+      if (j.malware)   flags.push('Malware');
+      if (j.suspicious)flags.push('Suspicious');
+      return {
+        status:'complete',
+        summary: `Risk score ${risk}/100${flags.length ? ' · ' + flags.join(', ') : ''}`,
+        score: risk, duration: dur,
+        data: { riskScore:risk, phishing:j.phishing, malware:j.malware, suspicious:j.suspicious,
+                dnsValid:j.dns_valid, server:j.server, statusCode:j.status_code }
+      };
+    }
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+async function queryGeoIP(ioc, type, signal) {
+  if (type !== 'IPv4' && type !== 'IPv6') return { status:'na', summary:'GeoIP only for IP addresses' };
+  const t0 = Date.now();
+  try {
+    const r   = await mkFetch(`https://ipwho.is/${encodeURIComponent(ioc)}`, { signal });
+    const dur = Date.now() - t0;
+    if (!r.ok) return { status:'error', summary:`HTTP ${r.status}`, score:null, duration:dur };
+    const j = await r.json();
+    if (!j.success) return { status:'error', summary: j.message || 'GeoIP lookup failed', score:null, duration:dur };
+    const loc = [j.city, j.region, j.country].filter(Boolean).join(', ');
+    return {
+      status:'complete',
+      summary: `${loc} · ${j.connection?.org || j.connection?.isp || j.org || 'Unknown ASN'}`,
+      score: null, duration: dur,
+      data: { ip:j.ip, country:`${j.country} (${j.country_code||''})`,
+              region:j.region, city:j.city,
+              coordinates:`${j.latitude}, ${j.longitude}`,
+              timezone:j.timezone,
+              isp:j.connection?.isp, org:j.connection?.org,
+              asn:j.connection?.asn, type:j.type }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+async function queryDNS(ioc, type, signal) {
+  const t0  = Date.now();
+  const doh = 'https://cloudflare-dns.com/dns-query';
+  const hdrs = { 'Accept':'application/dns-json' };
+  try {
+    let host = ioc;
+    if (type === 'URL') host = extractHost(ioc);
+    if (type === 'MD5' || type === 'SHA1' || type === 'SHA256') return { status:'na', summary:'DNS not applicable for file hashes' };
+
+    const records = {};
+
+    if (type === 'IPv4') {
+      // PTR reverse lookup
+      const ptr = ioc.split('.').reverse().join('.') + '.in-addr.arpa';
+      const r = await mkFetch(`${doh}?name=${encodeURIComponent(ptr)}&type=PTR`, { headers:hdrs, signal });
+      const j = await r.json();
+      records['PTR'] = (j.Answer||[]).map(a=>a.data).join(', ') || 'No PTR record';
+    } else {
+      const lookupTypes = (type === 'URL') ? ['A','MX'] : ['A','AAAA','MX','NS','TXT'];
+      const fetches = lookupTypes.map(t =>
+        mkFetch(`${doh}?name=${encodeURIComponent(host)}&type=${t}`, { headers:hdrs, signal })
+          .then(r => r.json())
+          .then(j => ({ t, answers:(j.Answer||[]).map(a=>a.data) }))
+          .catch(() => ({ t, answers:[] }))
+      );
+      for (const { t, answers } of await Promise.all(fetches)) {
+        if (answers.length) records[t] = answers.slice(0,4).join(', ');
+      }
+    }
+
+    const dur = Date.now() - t0;
+    const sum = Object.entries(records).map(([k,v]) => `${k}: ${v}`).join(' · ');
+    return {
+      status:'complete',
+      summary: sum.length > 90 ? sum.slice(0,87)+'…' : (sum || 'No records found'),
+      score:null, duration:dur,
+      data: { host, records }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+async function queryWHOIS(ioc, type, signal) {
+  if (type === 'MD5' || type === 'SHA1' || type === 'SHA256') return { status:'na', summary:'WHOIS not applicable for file hashes' };
+  const t0 = Date.now();
+  try {
+    let host = ioc;
+    if (type === 'URL') host = extractHost(ioc);
+
+    let url = (type === 'IPv4' || type === 'IPv6')
+      ? `https://rdap.arin.net/registry/ip/${encodeURIComponent(host)}`
+      : `https://rdap.arin.net/registry/domain/${encodeURIComponent(host)}`;
+
+    let r = await mkFetch(url, { signal, headers:{ 'Accept':'application/json' } });
+
+    // Fallback to rdap.org for non-ARIN resources
+    if (!r.ok && r.status !== 404) {
+      const fallback = (type === 'IPv4' || type === 'IPv6')
+        ? `https://rdap.org/ip/${encodeURIComponent(host)}`
+        : `https://rdap.org/domain/${encodeURIComponent(host)}`;
+      r = await mkFetch(fallback, { signal, headers:{ 'Accept':'application/json' } }).catch(()=>null);
+    }
+
+    const dur = Date.now() - t0;
+    if (!r || r.status === 404) return { status:'complete', summary:'Not found in RDAP', score:null, duration:dur, data:{} };
+    if (!r.ok) return { status:'error', summary:`RDAP error ${r.status}`, score:null, duration:dur };
+
+    const j = await r.json();
+
+    let name = j.name || j.handle || '';
+    let org = '';
+    let registered = '';
+    const network = j.startAddress ? `${j.startAddress} – ${j.endAddress}` : '';
+    const country  = j.country || '';
+
+    for (const ev of (j.events||[])) {
+      if (ev.eventAction === 'registration') registered = ev.eventDate?.split('T')[0] || '';
+    }
+    for (const ent of (j.entities||[])) {
+      if (ent.roles?.includes('registrant') || ent.roles?.includes('registrar') || ent.roles?.includes('abuse')) {
+        if (!org) {
+          const vcard = ent.vcardArray?.[1] || [];
+          for (const f of vcard) { if (f[0]==='fn') org = f[3]||''; }
+          if (!org) org = ent.handle || '';
+        }
+      }
+    }
+
+    const nameservers = (j.nameservers||[]).map(ns=>ns.ldhName||'').filter(Boolean);
+    const status = (j.status||[]).slice(0,3).join(', ');
+
+    return {
+      status:'complete',
+      summary: [org||name, country, registered].filter(Boolean).join(' · ') || 'RDAP data retrieved',
+      score:null, duration:dur,
+      data:{ handle:j.handle, name, org, network, country, registered,
+             nameservers:nameservers.join(', ')||'—', status:status||'—' }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+// ── Shodan ───────────────────────────────────────────────
+async function queryShodan(ioc, type, signal) {
+  if (type !== 'IPv4') return { status:'na', summary:'Shodan lookup for IPv4 only' };
+  const key = state.apiKeys.shodan;
+  if (!key) return { status:'no_key', summary:'No API key — add in Settings', score:null };
+  const t0 = Date.now();
+  try {
+    const r = await mkFetch(`https://api.shodan.io/shodan/host/${encodeURIComponent(ioc)}?key=${encodeURIComponent(key)}`, { signal });
+    const dur = Date.now() - t0;
+    if (r.status === 404) return { status:'complete', summary:'Host not found in Shodan', score:null, duration:dur, data:{ note:'No data available' } };
+    if (!r.ok) return { status:'error', summary:`HTTP ${r.status}`, score:null, duration:dur };
+    const j = await r.json();
+    const ports = (j.ports||[]).sort((a,b)=>a-b);
+    const vulns = (j.vulns || []).filter(v => /^CVE-/i.test(v));
+    // Enrich up to 10 CVEs with KEV + NVD data (parallel KEV, throttled NVD)
+    const cvesToEnrich = vulns.slice(0, 10);
+    const enrichedCVEs = cvesToEnrich.length ? await enrichCVEs(cvesToEnrich) : [];
+    const kevHits = enrichedCVEs.filter(c => c.kev).length;
+    const ransomwareKEV = enrichedCVEs.some(c => c.kev?.ransomware);
+
+    const flags = [];
+    if (kevHits) flags.push(`${kevHits} actively exploited (KEV)`);
+    if (vulns.length) flags.push(`${vulns.length} CVE${vulns.length>1?'s':''}`);
+    if (ports.length) flags.push(`${ports.length} port${ports.length>1?'s':''} open`);
+
+    // Score: any KEV → 80+, ransomware KEV → 95
+    let shodanScore = null;
+    if (ransomwareKEV)      shodanScore = 95;
+    else if (kevHits)       shodanScore = 80;
+    else if (vulns.length)  shodanScore = 50;
+
+    return {
+      status:'complete',
+      summary: flags.join(' · ') || 'Host found',
+      score: shodanScore, duration:dur,
+      data:{
+        ip: j.ip_str, os: j.os||'—', ports: ports.join(', ')||'None',
+        hostnames: (j.hostnames||[]).join(', ')||'—',
+        org: j.org||'—', isp: j.isp||'—', asn: j.asn||'—',
+        country: j.country_name||'—', city: j.city||'—',
+        kevCount: kevHits,
+        kevRansomware: ransomwareKEV,
+        vulnsTotal: vulns.length,
+        cves: enrichedCVEs,
+        cvesUnenriched: vulns.slice(10),
+        lastUpdate: j.last_update||'—',
+        services: (j.data||[]).slice(0,8).map(s=>`${s.port}/${s.transport||'tcp'} — ${(s.product||s._shodan?.module||'unknown')}`).join('\n')||'—'
+      }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+// ── GreyNoise ────────────────────────────────────────────
+async function queryGreyNoise(ioc, type, signal) {
+  if (type !== 'IPv4' && type !== 'IPv6') return { status:'na', summary:'GreyNoise for IPs only' };
+  const key = state.apiKeys.greynoise;
+  const t0 = Date.now();
+  try {
+    const hdrs = { 'Accept':'application/json' };
+    if (key) hdrs['key'] = key;
+    const r = await mkFetch(`https://api.greynoise.io/v3/community/${encodeURIComponent(ioc)}`, {
+      headers: hdrs, signal
+    });
+    const dur = Date.now() - t0;
+    if (r.status === 404) return { status:'complete', summary:'IP not observed by GreyNoise', score:0, duration:dur, data:{ classification:'unknown', noise:false, riot:false, note:'Not seen scanning the internet' } };
+    if (!r.ok) return { status:'error', summary:`HTTP ${r.status}`, score:null, duration:dur };
+    const j = await r.json();
+    const cls = (j.classification||'unknown').toLowerCase();
+    let score = 0;
+    if (cls === 'malicious') score = 90;
+    else if (cls === 'unknown') score = 30;
+    else if (cls === 'benign') score = 5;
+    return {
+      status:'complete',
+      summary: `${j.classification||'Unknown'}${j.name?' — '+j.name:''}${j.riot?' · RIOT':''}${j.noise?' · Noise':''}`,
+      score, duration:dur,
+      data:{
+        classification: j.classification||'—', name: j.name||'—',
+        noise: j.noise, riot: j.riot, lastSeen: j.last_seen||'—',
+        link: j.link||'—', message: j.message||'—'
+      }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+// ── URLhaus (abuse.ch) ───────────────────────────────────
+async function queryURLhaus(ioc, type, signal) {
+  const authKey = state.apiKeys.abusech;
+  if (!authKey) return { status:'no_key', summary:'No API key — add abuse.ch key in Settings', score:null };
+  const t0 = Date.now();
+  try {
+    let endpoint, body;
+    if (type === 'URL') {
+      endpoint = 'https://urlhaus-api.abuse.ch/v1/url/';
+      body = `url=${encodeURIComponent(ioc)}`;
+    } else if (type === 'Domain') {
+      endpoint = 'https://urlhaus-api.abuse.ch/v1/host/';
+      body = `host=${encodeURIComponent(ioc)}`;
+    } else if (type === 'IPv4' || type === 'IPv6') {
+      endpoint = 'https://urlhaus-api.abuse.ch/v1/host/';
+      body = `host=${encodeURIComponent(ioc)}`;
+    } else if (type === 'MD5' || type === 'SHA256') {
+      endpoint = 'https://urlhaus-api.abuse.ch/v1/payload/';
+      body = type === 'MD5' ? `md5_hash=${ioc}` : `sha256_hash=${ioc}`;
+    } else {
+      return { status:'na', summary:'Not supported for this IOC type' };
+    }
+    const r = await mkFetch(endpoint, {
+      method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'Auth-Key': authKey },
+      body, signal
+    });
+    const dur = Date.now() - t0;
+    if (!r.ok) return { status:'error', summary:`HTTP ${r.status}`, score:null, duration:dur };
+    const j = await r.json();
+    const qs = (j.query_status||'').toLowerCase();
+    if (qs === 'no_results') return { status:'complete', summary:'Not found in URLhaus', score:0, duration:dur, data:{ status:'Clean — no matches' } };
+
+    if (type === 'URL') {
+      const threat = j.threat || 'unknown';
+      const tags = (j.tags||[]).join(', ');
+      const score = j.threat === 'malware_download' ? 85 : (j.url_status === 'online' ? 70 : 40);
+      return {
+        status:'complete', summary:`${j.url_status||'unknown'} · ${threat}${tags?' · '+tags:''}`,
+        score, duration:dur,
+        data:{
+          urlStatus: j.url_status||'—', threat: j.threat||'—',
+          dateAdded: j.date_added||'—', tags: tags||'None',
+          reporter: j.reporter||'—', takedown: j.takedown_time_seconds ? `${j.takedown_time_seconds}s`:'—',
+          payloads: (j.payloads||[]).length ? (j.payloads||[]).slice(0,5).map(p=>`${p.filename||'unknown'} (${p.file_type||'?'})`).join(', '):'None'
+        }
+      };
+    } else if (type === 'Domain' || type === 'IPv4' || type === 'IPv6') {
+      const urls = j.urls || [];
+      const online = urls.filter(u => u.url_status === 'online').length;
+      const score = online > 0 ? 75 : (urls.length > 0 ? 40 : 0);
+      return {
+        status:'complete', summary:`${urls.length} URL${urls.length!==1?'s':''} listed${online?' · '+online+' online':''}`,
+        score, duration:dur,
+        data:{
+          totalUrls: urls.length, onlineUrls: online,
+          firstSeen: j.firstseen||'—', tags: (j.tags||[]).join(', ')||'None',
+          recentUrls: urls.slice(0,5).map(u=>`${u.url} (${u.url_status})`).join('\n')||'None'
+        }
+      };
+    } else {
+      const sigs = (j.signature||'—');
+      const score = j.signature ? 80 : 50;
+      return {
+        status:'complete', summary:`Payload found · ${sigs}`,
+        score, duration:dur,
+        data:{
+          fileType: j.file_type||'—', fileSize: j.file_size ? `${j.file_size} bytes`:'—',
+          signature: j.signature||'—', firstSeen: j.firstseen||'—',
+          urlCount: (j.urls||[]).length, virustotal: j.virustotal ? `${j.virustotal.percent}%`:'—'
+        }
+      };
+    }
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+// ── ThreatFox (abuse.ch) ─────────────────────────────────
+async function queryThreatFox(ioc, type, signal) {
+  const authKey = state.apiKeys.abusech;
+  if (!authKey) return { status:'no_key', summary:'No API key — add abuse.ch key in Settings', score:null };
+  const t0 = Date.now();
+  try {
+    const r = await mkFetch('https://threatfox-api.abuse.ch/api/v1/', {
+      method:'POST', headers:{ 'Content-Type':'application/json', 'Auth-Key': authKey },
+      body: JSON.stringify({ query:'search_ioc', search_term: ioc }), signal
+    });
+    const dur = Date.now() - t0;
+    if (!r.ok) return { status:'error', summary:`HTTP ${r.status}`, score:null, duration:dur };
+    const j = await r.json();
+    const qs = (j.query_status||'').toLowerCase();
+    if (qs === 'no_result' || qs === 'no_results' || !j.data || !j.data.length) {
+      return { status:'complete', summary:'Not found in ThreatFox', score:0, duration:dur, data:{ status:'Clean — no IOC matches' } };
+    }
+    const entries = j.data;
+    const malware = [...new Set(entries.map(e=>e.malware_printable).filter(Boolean))];
+    const threats = [...new Set(entries.map(e=>e.threat_type_desc).filter(Boolean))];
+    const tags = [...new Set(entries.flatMap(e=>e.tags||[]))];
+    const confidence = Math.max(...entries.map(e=>e.confidence_level||0));
+    const score = confidence >= 75 ? 85 : (confidence >= 50 ? 65 : 45);
+    return {
+      status:'complete',
+      summary: `${entries.length} match${entries.length!==1?'es':''} · ${malware.slice(0,3).join(', ')||'Unknown malware'}`,
+      score, duration:dur,
+      data:{
+        matches: entries.length, malware: malware.join(', ')||'—',
+        threatTypes: threats.join(', ')||'—', confidence: `${confidence}%`,
+        tags: tags.join(', ')||'None',
+        firstSeen: entries[entries.length-1]?.first_seen_utc||'—',
+        lastSeen: entries[0]?.first_seen_utc||'—',
+        reporter: entries[0]?.reporter||'—'
+      }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+// ── MalwareBazaar (abuse.ch) ─────────────────────────────
+async function queryMalwareBazaar(ioc, type, signal) {
+  if (type !== 'MD5' && type !== 'SHA1' && type !== 'SHA256') return { status:'na', summary:'MalwareBazaar for file hashes only' };
+  const authKey = state.apiKeys.abusech;
+  if (!authKey) return { status:'no_key', summary:'No API key — add abuse.ch key in Settings', score:null };
+  const t0 = Date.now();
+  try {
+    const r = await mkFetch('https://mb-api.abuse.ch/api/v1/', {
+      method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'Auth-Key': authKey },
+      body: `query=get_info&hash=${encodeURIComponent(ioc)}`, signal
+    });
+    const dur = Date.now() - t0;
+    if (!r.ok) return { status:'error', summary:`HTTP ${r.status}`, score:null, duration:dur };
+    const j = await r.json();
+    if (j.query_status !== 'ok' || !j.data || !j.data.length) {
+      return { status:'complete', summary:'Not found in MalwareBazaar', score:0, duration:dur, data:{ status:'No matching samples' } };
+    }
+    const s = j.data[0];
+    const tags = (s.tags||[]).join(', ');
+    const sig = s.signature || 'Unknown';
+    return {
+      status:'complete',
+      summary: `${sig}${tags?' · '+tags:''}`,
+      score: 80, duration:dur,
+      data:{
+        fileName: s.file_name||'—', fileType: s.file_type||'—',
+        fileSize: s.file_size ? `${(s.file_size/1024).toFixed(1)} KB`:'—',
+        signature: sig, tags: tags||'None',
+        firstSeen: s.first_seen_utc||'—', lastSeen: s.last_seen_utc||'—',
+        originCountry: s.origin_country||'—', reporter: s.reporter||'—',
+        deliveryMethod: s.delivery_method||'—',
+        sha256: s.sha256_hash||'—', md5: s.md5_hash||'—',
+        imphash: s.imphash||'—', ssdeep: s.ssdeep||'—',
+        vtPercent: s.intelligence?.mail?.percent!=null ? `${s.intelligence.mail.percent}%`:'—'
+      }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+// ── AlienVault OTX ───────────────────────────────────────
+async function queryOTX(ioc, type, signal) {
+  const key = state.apiKeys.otx;
+  if (!key) return { status:'no_key', summary:'No API key — add in Settings', score:null };
+  const t0 = Date.now();
+  try {
+    let section;
+    if (type === 'IPv4') section = `IPv4/${encodeURIComponent(ioc)}`;
+    else if (type === 'IPv6') section = `IPv6/${encodeURIComponent(ioc)}`;
+    else if (type === 'Domain') section = `domain/${encodeURIComponent(ioc)}`;
+    else if (type === 'URL') section = `url/${encodeURIComponent(ioc)}`;
+    else if (type === 'MD5' || type === 'SHA1' || type === 'SHA256') section = `file/${encodeURIComponent(ioc)}`;
+    else return { status:'na', summary:'Not supported' };
+
+    const r = await mkFetch(`https://otx.alienvault.com/api/v1/indicators/${section}/general`, {
+      headers:{ 'X-OTX-API-KEY': key, 'Accept':'application/json' }, signal
+    });
+    const dur = Date.now() - t0;
+    if (!r.ok) return { status:'error', summary:`HTTP ${r.status}`, score:null, duration:dur };
+    const j = await r.json();
+    const pulseCount = j.pulse_info?.count || 0;
+    const refs = j.pulse_info?.references || [];
+    const tags = [...new Set((j.pulse_info?.pulses||[]).flatMap(p=>p.tags||[]))].slice(0,10);
+    const malwareFamilies = [...new Set((j.pulse_info?.pulses||[]).flatMap(p=>(p.malware_families||[]).map(m=>m.display_name)).filter(Boolean))];
+    const adversary = [...new Set((j.pulse_info?.pulses||[]).map(p=>p.adversary).filter(Boolean))];
+    // Extract MITRE ATT&CK technique IDs from pulses
+    const attackIds = parseAttackIds(
+      (j.pulse_info?.pulses||[]).flatMap(p => p.attack_ids || [])
+    );
+    const score = pulseCount >= 10 ? 75 : (pulseCount >= 3 ? 50 : (pulseCount > 0 ? 25 : 0));
+    return {
+      status:'complete',
+      summary: `${pulseCount} pulse${pulseCount!==1?'s':''}${malwareFamilies.length ? ' · '+malwareFamilies.slice(0,2).join(', '):''}${attackIds.length ? ' · '+attackIds.length+' ATT&CK':''}`,
+      score:null, duration:dur,
+      data:{
+        pulses: pulseCount,
+        tags: tags.join(', ')||'None',
+        malwareFamilies: malwareFamilies.join(', ')||'None',
+        adversaries: adversary.join(', ')||'None',
+        attackIds,
+        references: refs.slice(0,5).join('\n')||'None',
+        country: j.country_name||j.country_code||'—',
+        asn: j.asn ? `AS${j.asn}`:'—',
+        reputation: j.reputation!=null ? j.reputation : '—'
+      }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+// ── Sucuri SiteCheck ─────────────────────────────────────
+async function querySucuri(ioc, type, signal) {
+  if (type !== 'Domain' && type !== 'URL') return { status:'na', summary:'Sucuri SiteCheck for domains/URLs only' };
+  const host = type === 'URL' ? extractHost(ioc) : ioc;
+  const t0 = Date.now();
+  try {
+    const r = await mkFetch(`https://sitecheck.sucuri.net/api/v3/?scan=${encodeURIComponent(host)}`, { signal });
+    const dur = Date.now() - t0;
+    if (!r.ok) return { status:'error', summary:`HTTP ${r.status}`, score:null, duration:dur };
+    const j = await r.json();
+    const warnings = j.warnings || {};
+    const blacklists = j.blacklists || {};
+    const blHits = Object.values(blacklists).filter(v => v && v.status && v.status !== 'clean').length;
+    const totalBL = Object.keys(blacklists).length || 1;
+    const malware = (j.malware || {}).entries || [];
+    const hasIssues = blHits > 0 || malware.length > 0;
+    const flags = [];
+    if (blHits) flags.push(`${blHits}/${totalBL} blacklists`);
+    if (malware.length) flags.push(`${malware.length} malware`);
+    if (j.site?.firewall) flags.push('WAF detected');
+    return {
+      status:'complete',
+      summary: hasIssues ? flags.join(' · ') : 'Clean — no issues detected',
+      score:null, duration:dur,
+      data:{
+        status: hasIssues ? 'Issues found':'Clean',
+        blacklisted: `${blHits} / ${totalBL}`,
+        malware: malware.length ? malware.map(m=>m.msg||m.type||'unknown').join(', '):'None',
+        webServer: j.site?.server||'—', firewall: j.site?.firewall ? 'Yes':'No',
+        ip: j.site?.ip||'—', cms: j.cms?.name||'—',
+        redirects: j.site?.redirects ? 'Yes':'No',
+        httpStatus: j.site?.status||'—'
+      }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+// ── urlscan.io ───────────────────────────────────────────
+async function queryUrlscan(ioc, type, signal) {
+  if (type !== 'URL' && type !== 'Domain') return { status:'na', summary:'urlscan.io for URLs/domains only' };
+  const key = state.apiKeys.urlscan;
+  if (!key) return { status:'no_key', summary:'No API key — add in Settings', score:null };
+  const t0 = Date.now();
+  try {
+    const target = type === 'Domain' ? `http://${ioc}` : ioc;
+    // First try search to avoid burning a scan if recent results exist
+    const searchUrl = `https://urlscan.io/api/v1/search/?q=${encodeURIComponent(`page.domain:"${type==='Domain'?ioc:extractHost(ioc)}"`)}&size=1`;
+    let result = null;
+    try {
+      const sr = await mkFetch(searchUrl, { headers:{ 'API-Key': key, 'Accept':'application/json' }, signal });
+      if (sr.ok) {
+        const sj = await sr.json();
+        if (sj.results && sj.results.length > 0) {
+          const r0 = sj.results[0];
+          if (r0.task && r0.task.uuid) {
+            const detUrl = `https://urlscan.io/api/v1/result/${r0.task.uuid}/`;
+            const dr = await mkFetch(detUrl, { headers:{ 'API-Key': key, 'Accept':'application/json' }, signal });
+            if (dr.ok) result = await dr.json();
+          }
+        }
+      }
+    } catch {}
+
+    // If no cached result, submit a new scan
+    if (!result) {
+      const sub = await mkFetch('https://urlscan.io/api/v1/scan/', {
+        method:'POST', headers:{ 'API-Key': key, 'Content-Type':'application/json' },
+        body: JSON.stringify({ url: target, visibility: 'public' }), signal
+      });
+      if (!sub.ok) {
+        const err = await sub.json().catch(()=>({}));
+        return { status:'error', summary: err.message || `HTTP ${sub.status}`, score:null, duration: Date.now()-t0 };
+      }
+      const subJ = await sub.json();
+      // Poll for result (up to ~25s)
+      for (let i = 0; i < 12; i++) {
+        if (signal?.aborted) return { status:'error', summary:'Canceled', score:null };
+        await new Promise(r => setTimeout(r, 2200));
+        const pr = await mkFetch(`https://urlscan.io/api/v1/result/${subJ.uuid}/`, {
+          headers:{ 'API-Key': key, 'Accept':'application/json' }, signal
+        });
+        if (pr.status === 200) { result = await pr.json(); break; }
+      }
+      if (!result) return { status:'complete', summary:'Scan submitted — results pending', score:null, duration: Date.now()-t0,
+        data:{ uuid: subJ.uuid, reportLink: subJ.result, note:'Scan still processing — open report link directly' } };
+    }
+
+    const dur = Date.now() - t0;
+    const verd = (result.verdicts?.overall?.malicious ? 'Malicious' : (result.verdicts?.overall?.score > 0 ? 'Suspicious' : 'Clean'));
+    const score = result.verdicts?.overall?.score != null ? Math.min(100, Math.max(0, result.verdicts.overall.score)) : 0;
+    const tags = (result.verdicts?.overall?.tags || []).join(', ');
+    return {
+      status:'complete',
+      summary: `${verd}${tags?' · '+tags:''}${result.page?.country?' · '+result.page.country:''}`,
+      score: result.verdicts?.overall?.malicious ? Math.max(75, score) : score,
+      duration: dur,
+      data:{
+        verdict: verd,
+        scoreNum: score,
+        screenshot: result.task?.screenshotURL || `https://urlscan.io/screenshots/${result.task?.uuid}.png`,
+        reportLink: result.task?.reportURL || `https://urlscan.io/result/${result.task?.uuid}/`,
+        domain: result.page?.domain || '—',
+        ip: result.page?.ip || '—',
+        country: result.page?.country || '—',
+        server: result.page?.server || '—',
+        ptr: result.page?.ptr || '—',
+        asn: result.page?.asn || '—',
+        asnName: result.page?.asnname || '—',
+        title: result.data?.[0]?.requests?.[0]?.response?.response?.title || result.page?.title || '—',
+        urlsLoaded: result.lists?.urls?.length || 0,
+        domainsContacted: result.lists?.domains?.length || 0,
+        ipsContacted: result.lists?.ips?.length || 0,
+        tags: tags || 'None'
+      }
+    };
+  } catch(e) {
+    if (e.name === 'AbortError') return { status:'error', summary:'Canceled', score:null };
+    return { status:'error', summary: e.message || 'Network error', score:null };
+  }
+}
+
+// ────────────────────────────────────────────────────────
+// INVESTIGATION ENGINE
+// ────────────────────────────────────────────────────────
+async function startInvestigation(rawIoc) {
+  const ioc  = refang(rawIoc.trim());
+  const type = detectType(ioc);
+  if (!type) { showToast('Could not detect IOC type — check your input', 'error'); return; }
+
+  cancelScan(true);
+
+  const playbook = PLAYBOOKS[activePlaybook] || PLAYBOOKS.full;
+  const inv = {
+    id:        Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    ioc, type,
+    timestamp: Date.now(),
+    riskScore: null,
+    verdict:   null,
+    modules:   {},
+    notes:     playbook.notes || '',
+    playbook:  playbook.id,
+    actions:   [],
+  };
+
+  // Module list = type-applicable ∩ playbook-allowed (or all type-applicable for 'full')
+  const typeMods = TYPE_MODULES[type] || ['virustotal'];
+  const mods = playbook.modules
+    ? typeMods.filter(m => playbook.modules.includes(m))
+    : typeMods;
+  if (!mods.length) { showToast(`Playbook "${playbook.name}" has no applicable modules for ${type}`, 'error'); return; }
+  for (const m of mods) inv.modules[m] = { status:'pending', summary:'Waiting…', score:null };
+
+  state.current = inv;
+  scanRunning   = true;
+  abortController = new AbortController();
+  const signal = abortController.signal;
+
+  showSkeletons(mods);
+  setScanStatus(true, `Scanning ${mods.length} module${mods.length>1?'s':''}…`);
+  document.getElementById('cancel-btn').classList.remove('hidden');
+  resetRightPane();
+  renderHistory();
+
+  const runners = {
+    virustotal:    queryVirusTotal,
+    abuseipdb:     queryAbuseIPDB,
+    ipqs:          queryIPQS,
+    shodan:        queryShodan,
+    greynoise:     queryGreyNoise,
+    urlhaus:       queryURLhaus,
+    threatfox:     queryThreatFox,
+    malwarebazaar: queryMalwareBazaar,
+    otx:           queryOTX,
+    sucuri:        querySucuri,
+    urlscan:       queryUrlscan,
+    geoip:         queryGeoIP,
+    dns:           queryDNS,
+    whois:         queryWHOIS,
+  };
+
+  const promises = mods.map(async modId => {
+    const runner = runners[modId];
+    if (!runner) return;
+    inv.modules[modId].status = 'running';
+    try {
+      const result = await runner(ioc, type, signal);
+      if (signal.aborted) return;
+      Object.assign(inv.modules[modId], result);
+      const s = computeRiskScore(inv.modules);
+      if (s !== null) { inv.riskScore = s; inv.verdict = getVerdict(s)?.label; }
+      renderModuleCard(modId, inv.modules[modId]);
+      updateRightPane(inv);
+    } catch(e) {
+      if (signal.aborted) return;
+      inv.modules[modId] = { status:'error', summary: e.message || 'Unknown error', score:null };
+      renderModuleCard(modId, inv.modules[modId]);
+    }
+  });
+
+  await Promise.all(promises);
+  if (signal.aborted) return;
+
+  scanRunning = false;
+  setScanStatus(false);
+  document.getElementById('cancel-btn').classList.add('hidden');
+
+  const finalScore = computeRiskScore(inv.modules);
+  inv.riskScore = finalScore;
+  inv.verdict   = getVerdict(finalScore)?.label || null;
+
+  state.investigations = state.investigations.filter(i => i.id !== inv.id);
+  state.investigations.unshift(inv);
+  saveInvestigations();
+  renderHistory();
+  updateRightPane(inv);
+}
+
+function cancelScan(silent = false) {
+  if (abortController) { abortController.abort(); abortController = null; }
+  scanRunning = false;
+  setScanStatus(false);
+  document.getElementById('cancel-btn').classList.add('hidden');
+  if (!silent) showToast('Scan canceled');
+}
+
+// ────────────────────────────────────────────────────────
+// UI — MODULE CARDS
+// ────────────────────────────────────────────────────────
+function showSkeletons(mods) {
+  const container = document.getElementById('module-cards');
+  document.getElementById('empty-state').style.display = 'none';
+  container.style.display = 'flex';
+  container.innerHTML = '';
+
+  for (const modId of mods) {
+    const el = document.createElement('div');
+    el.className = 'mod-card';
+    el.id = `card-${modId}`;
+    el.innerHTML = `
+      <div class="px-5 py-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="shimmer rounded-lg" style="width:34px;height:34px;flex-shrink:0;"></div>
+            <div>
+              <div class="shimmer rounded mb-1.5" style="width:100px;height:13px;"></div>
+              <div class="shimmer rounded" style="width:55px;height:10px;"></div>
+            </div>
+          </div>
+          <div class="shimmer rounded-full" style="width:56px;height:20px;"></div>
+        </div>
+        <div class="shimmer rounded mt-3" style="height:11px;width:75%;"></div>
+      </div>`;
+    container.appendChild(el);
+  }
+}
+
+function renderModuleCard(modId, result) {
+  const def     = MODULE_DEFS[modId];
+  const card    = document.getElementById(`card-${modId}`);
+  if (!card) return;
+
+  const status  = result.status;
+  const verdict = result.score != null ? getVerdict(result.score) : null;
+
+  let borderClass = '';
+  if (verdict) {
+    if (verdict.max <= 24)  borderClass = 'bc-safe';
+    else if (verdict.max <= 49) borderClass = 'bc-info';
+    else if (verdict.max <= 74) borderClass = 'bc-warning';
+    else borderClass = 'bc-critical';
+  }
+
+  card.className = `mod-card slide-down${borderClass ? ' ' + borderClass : ''}`;
+
+  const pillHTML = buildPill(status, result.duration);
+  const hasData  = status === 'complete' && result.data && Object.keys(result.data).length > 0;
+
+  let scoreHTML = '';
+  if (result.score != null && verdict) {
+    scoreHTML = `
+      <div class="flex items-center gap-2 mt-1">
+        <span class="font-bold text-xs" style="color:${verdict.color};min-width:24px;">${result.score}</span>
+        <div class="score-bar" style="max-width:80px;">
+          <div class="score-bar-fill" style="width:${result.score}%;background:${verdict.color};"></div>
+        </div>
+      </div>`;
+  }
+
+  const expandBtn = hasData
+    ? `<button class="btn-icon" onclick="toggleCard('${modId}')" id="expand-${modId}" title="Expand/collapse">
+         <span class="msym sm">expand_more</span>
+       </button>`
+    : '';
+
+  const copyBtn = hasData
+    ? `<button class="btn-icon" onclick="copyModData('${modId}')" title="Copy data">
+         <span class="msym sm">content_copy</span>
+       </button>`
+    : '';
+
+  let bodyHTML = '';
+  if (hasData) {
+    bodyHTML = buildModuleBody(modId, result.data);
+  } else if (status === 'no_key') {
+    bodyHTML = `<div class="px-5 pb-3 pt-1 text-xs text-muted">
+      <a href="#" onclick="openSettings();return false;" class="font-semibold" style="color:#2563EB;">Add API key in Settings →</a>
+    </div>`;
+  } else if (status === 'error') {
+    bodyHTML = `<div class="px-5 pb-3 pt-1 text-xs" style="color:#DC2626;">${esc(result.summary)}</div>`;
+  }
+
+  card.innerHTML = `
+    <div class="px-4 py-3.5">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="flex items-center justify-center rounded-lg flex-shrink-0"
+               style="width:34px;height:34px;background:${verdict ? verdict.bg : '#F8FAFC'};">
+            <span class="msym" style="color:${verdict ? verdict.color : '#94A3B8'};font-size:17px;">${def.icon}</span>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="font-semibold text-txt tip" style="font-size:13px;" data-tip="${esc(def.desc||'')}">${def.name}</span>
+              ${(def.csf||[]).map(f => `<span class="csf-badge tip" style="background:${CSF_FUNCTIONS[f].color};" data-tip="NIST CSF — ${CSF_FUNCTIONS[f].name}: ${CSF_FUNCTIONS[f].desc}">${f}</span>`).join('')}
+            </div>
+            ${scoreHTML}
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          ${pillHTML}
+          ${copyBtn}
+          ${expandBtn}
+        </div>
+      </div>
+      <div class="mt-1.5 text-xs text-muted" style="word-break:break-word;">${esc(result.summary || '')}</div>
+    </div>
+    ${hasData
+      ? `<div class="card-body collapsed" id="body-${modId}">${bodyHTML}</div>`
+      : bodyHTML}
+  `;
+}
+
+function buildPill(status, duration) {
+  const dur = duration ? ` · ${(duration/1000).toFixed(1)}s` : '';
+  switch(status) {
+    case 'running':  return `<span class="pill pill-running"><span class="msym sm spin" style="font-size:12px;">sync</span>Running</span>`;
+    case 'complete': return `<span class="pill pill-done"><span class="msym sm">check_circle</span>Done${dur}</span>`;
+    case 'error':    return `<span class="pill pill-error"><span class="msym sm">error</span>Error</span>`;
+    case 'no_key':   return `<span class="pill pill-nokey"><span class="msym sm">key</span>No Key</span>`;
+    case 'na':       return `<span class="pill pill-na">N/A</span>`;
+    default:         return `<span class="pill pill-pending">Pending</span>`;
+  }
+}
+
+function buildModuleBody(modId, data) {
+  const rows = [];
+  switch(modId) {
+    case 'virustotal':
+      if (data.found === false) { rows.push(['Status','Not in VT database']); break; }
+      if (data.total)       rows.push(['Detection',  `${data.malicious} / ${data.total} malicious`]);
+      if (data.suspicious)  rows.push(['Suspicious', `${data.suspicious} engines`]);
+      if (data.harmless)    rows.push(['Harmless',   `${data.harmless} engines`]);
+      if (data.lastScan)    rows.push(['Last Scan',  data.lastScan]);
+      if (data.country)     rows.push(['Country',    data.country]);
+      if (data.asOwner)     rows.push(['ASN Owner',  data.asOwner]);
+      if (data.network)     rows.push(['Network',    data.network]);
+      if (data.reputation != null) rows.push(['VT Reputation', data.reputation]);
+      if (data.flagged?.length) {
+        const tableRows = buildDataTable(rows);
+        const engineRows = data.flagged.map(e =>
+          `<div class="data-row">
+             <span class="data-key">${esc(e.name)}</span>
+             <span class="data-val flex items-center gap-1.5 justify-end">
+               <span>${esc(e.result||'-')}</span>
+               <span class="${e.category==='malicious'?'bool-yes':'bool-warn'}">${e.category}</span>
+             </span>
+           </div>`).join('');
+        return `<div class="px-4 pb-4 pt-1 border-t border-border">${tableRows}
+          <div class="mt-3">
+            <div class="text-xs font-bold uppercase tracking-widest text-muted mb-1.5">Flagging Engines</div>
+            ${engineRows}
+          </div></div>`;
+      }
+      break;
+
+    case 'abuseipdb':
+      rows.push(['Confidence',    `${data.confidence}%`]);
+      rows.push(['Total Reports', `${(data.totalReports||0).toLocaleString()}`]);
+      rows.push(['Distinct IPs',  `${(data.distinctUsers||0).toLocaleString()}`]);
+      rows.push(['Last Reported', data.lastReported||'Never']);
+      if (data.isp)         rows.push(['ISP',         data.isp]);
+      if (data.domain)      rows.push(['Domain',      data.domain]);
+      if (data.country)     rows.push(['Country',     data.country]);
+      if (data.usageType)   rows.push(['Usage Type',  data.usageType]);
+      if (data.categories)  rows.push(['Categories',  data.categories]);
+      if (data.isWhitelisted != null) rows.push(['Whitelisted', data.isWhitelisted ? 'Yes':'No']);
+      break;
+
+    case 'ipqs':
+      if (data.fraudScore != null) {
+        rows.push(['Fraud Score',  `${data.fraudScore} / 100`]);
+        rows.push(['Proxy',        boolBadge(data.proxy)]);
+        rows.push(['VPN',          boolBadge(data.vpn)]);
+        rows.push(['Tor',          boolBadge(data.tor)]);
+        rows.push(['Recent Abuse', boolBadge(data.recentAbuse)]);
+        rows.push(['Bot',          boolBadge(data.bot)]);
+        if (data.connectionType) rows.push(['Connection', data.connectionType]);
+        if (data.isp)            rows.push(['ISP',         data.isp]);
+        if (data.org)            rows.push(['Organization',data.org]);
+        if (data.location)       rows.push(['Location',    data.location]);
+        if (data.timezone)       rows.push(['Timezone',    data.timezone]);
+      } else {
+        rows.push(['Risk Score', `${data.riskScore||0} / 100`]);
+        rows.push(['Phishing',   boolBadge(data.phishing)]);
+        rows.push(['Malware',    boolBadge(data.malware)]);
+        rows.push(['Suspicious', boolBadge(data.suspicious)]);
+        rows.push(['DNS Valid',  boolBadge(data.dnsValid, true)]);
+        if (data.server)     rows.push(['Server',      data.server]);
+        if (data.statusCode) rows.push(['HTTP Status', data.statusCode]);
+      }
+      break;
+
+    case 'geoip':
+      if (data.ip)          rows.push(['IP',          data.ip]);
+      if (data.country)     rows.push(['Country',     data.country]);
+      if (data.region)      rows.push(['Region',      data.region]);
+      if (data.city)        rows.push(['City',        data.city]);
+      if (data.asn)         rows.push(['ASN',         data.asn]);
+      if (data.isp)         rows.push(['ISP',         data.isp]);
+      if (data.org)         rows.push(['Organization',data.org]);
+      if (data.type)        rows.push(['IP Type',     data.type]);
+      if (data.timezone)    rows.push(['Timezone',    data.timezone]);
+      if (data.coordinates) rows.push(['Coordinates', data.coordinates]);
+      break;
+
+    case 'dns':
+      if (data.host)  rows.push(['Queried Host', data.host]);
+      for (const [k,v] of Object.entries(data.records||{})) rows.push([k, v]);
+      break;
+
+    case 'whois':
+      if (data.handle)      rows.push(['Handle',      data.handle]);
+      if (data.name)        rows.push(['Name',        data.name]);
+      if (data.org)         rows.push(['Organization',data.org]);
+      if (data.network)     rows.push(['Network',     data.network]);
+      if (data.country)     rows.push(['Country',     data.country]);
+      if (data.registered)  rows.push(['Registered',  data.registered]);
+      if (data.status)      rows.push(['Status',      data.status]);
+      if (data.nameservers) rows.push(['Nameservers', data.nameservers]);
+      break;
+
+    case 'shodan':
+      if (data.note)        { rows.push(['Status', data.note]); break; }
+      if (data.ip)          rows.push(['IP',           data.ip]);
+      if (data.os)          rows.push(['OS',           data.os]);
+      if (data.ports)       rows.push(['Open Ports',   data.ports]);
+      if (data.hostnames)   rows.push(['Hostnames',    data.hostnames]);
+      if (data.org)         rows.push(['Organization', data.org]);
+      if (data.isp)         rows.push(['ISP',          data.isp]);
+      if (data.asn)         rows.push(['ASN',          data.asn]);
+      if (data.country)     rows.push(['Country',      data.country]);
+      if (data.city)        rows.push(['City',         data.city]);
+      if (data.vulnsTotal)  rows.push(['Total CVEs',   data.vulnsTotal]);
+      if (data.kevCount)    rows.push(['CISA KEV Hits', `${data.kevCount} actively exploited${data.kevRansomware?' · Ransomware':''}`]);
+      if (data.lastUpdate)  rows.push(['Last Update',  data.lastUpdate]);
+      const baseRows = buildDataTable(rows);
+      let extras = '';
+      if (data.cves?.length) {
+        const cveLines = data.cves.map(c => {
+          const isKev = !!c.kev;
+          const ransom = !!c.kev?.ransomware;
+          const sev = c.nvd?.severity;
+          const score = c.nvd?.score;
+          const summary = c.nvd?.summary || c.kev?.desc || '';
+          const cls = ransom ? 'cve-row kev kev-ransom' : (isKev ? 'cve-row kev' : 'cve-row');
+          const cvssBadge = score != null
+            ? `<span class="cve-cvss" style="background:${severityColor(sev)};color:#fff;">${score} ${sev||''}</span>`
+            : '<span class="cve-cvss" style="background:#F1F5F9;color:#94A3B8;">—</span>';
+          const kevBadge = isKev
+            ? `<span class="cve-kev-badge${ransom?' ransom':''}" title="${esc(c.kev.action||'')}">${ransom?'KEV · Ransomware':'KEV'}</span>`
+            : '';
+          return `<div class="${cls}">
+            <span class="cve-id"><a href="https://nvd.nist.gov/vuln/detail/${esc(c.id)}" target="_blank">${esc(c.id)}</a></span>
+            ${cvssBadge}
+            ${kevBadge}
+            <span class="cve-summary">${esc(summary || (isKev ? c.kev.product : ''))}</span>
+          </div>`;
+        }).join('');
+        const extraNote = data.cvesUnenriched?.length
+          ? `<div class="text-xs text-muted mt-2">+ ${data.cvesUnenriched.length} additional CVE${data.cvesUnenriched.length>1?'s':''} not enriched (rate limit)</div>`
+          : '';
+        extras += `<div class="mt-3"><div class="text-xs font-bold uppercase tracking-widest text-muted mb-1.5">CVE Details</div>${cveLines}${extraNote}</div>`;
+      }
+      if (data.services && data.services !== '—') {
+        const svcLines = data.services.split('\n').map(s =>
+          `<div class="data-row"><span class="data-val" style="text-align:left;font-size:11px;">${esc(s)}</span></div>`).join('');
+        extras += `<div class="mt-3"><div class="text-xs font-bold uppercase tracking-widest text-muted mb-1.5">Services</div>${svcLines}</div>`;
+      }
+      return `<div class="px-4 pb-4 pt-1 border-t border-border">${baseRows}${extras}</div>`;
+
+    case 'greynoise':
+      if (data.classification) rows.push(['Classification', data.classification]);
+      if (data.name)           rows.push(['Actor/Name',     data.name]);
+      rows.push(['Noise',  boolBadge(data.noise)]);
+      rows.push(['RIOT',   boolBadge(data.riot, true)]);
+      if (data.lastSeen)       rows.push(['Last Seen',      data.lastSeen]);
+      if (data.message)        rows.push(['Message',        data.message]);
+      break;
+
+    case 'urlhaus':
+      if (data.status && typeof data.status === 'string' && data.status.startsWith('Clean')) { rows.push(['Status', data.status]); break; }
+      if (data.urlStatus)       rows.push(['URL Status',      data.urlStatus]);
+      if (data.threat)          rows.push(['Threat',           data.threat]);
+      if (data.totalUrls!=null) rows.push(['Total URLs',      data.totalUrls]);
+      if (data.onlineUrls!=null)rows.push(['Online URLs',     data.onlineUrls]);
+      if (data.dateAdded)       rows.push(['Date Added',      data.dateAdded]);
+      if (data.firstSeen)       rows.push(['First Seen',      data.firstSeen]);
+      if (data.tags)            rows.push(['Tags',            data.tags]);
+      if (data.reporter)        rows.push(['Reporter',        data.reporter]);
+      if (data.takedown)        rows.push(['Takedown Time',   data.takedown]);
+      if (data.payloads)        rows.push(['Payloads',        data.payloads]);
+      if (data.fileType)        rows.push(['File Type',       data.fileType]);
+      if (data.fileSize)        rows.push(['File Size',       data.fileSize]);
+      if (data.signature)       rows.push(['Signature',       data.signature]);
+      if (data.urlCount!=null)  rows.push(['Associated URLs', data.urlCount]);
+      if (data.virustotal)      rows.push(['VT Detection',   data.virustotal]);
+      if (data.recentUrls && data.recentUrls !== 'None') {
+        const tblRows = buildDataTable(rows);
+        const urlLines = data.recentUrls.split('\n').map(u =>
+          `<div class="data-row"><span class="data-val" style="text-align:left;font-size:11px;">${esc(u)}</span></div>`).join('');
+        return `<div class="px-4 pb-4 pt-1 border-t border-border">${tblRows}
+          <div class="mt-3"><div class="text-xs font-bold uppercase tracking-widest text-muted mb-1.5">Recent URLs</div>${urlLines}</div></div>`;
+      }
+      break;
+
+    case 'threatfox':
+      if (data.status && typeof data.status === 'string' && data.status.startsWith('Clean')) { rows.push(['Status', data.status]); break; }
+      if (data.matches!=null) rows.push(['Matches',          data.matches]);
+      if (data.malware)       rows.push(['Malware',          data.malware]);
+      if (data.threatTypes)   rows.push(['Threat Types',     data.threatTypes]);
+      if (data.confidence)    rows.push(['Confidence',       data.confidence]);
+      if (data.tags)          rows.push(['Tags',             data.tags]);
+      if (data.firstSeen)     rows.push(['First Seen',      data.firstSeen]);
+      if (data.lastSeen)      rows.push(['Last Seen',       data.lastSeen]);
+      if (data.reporter)      rows.push(['Reporter',        data.reporter]);
+      break;
+
+    case 'malwarebazaar':
+      if (data.status && typeof data.status === 'string') { rows.push(['Status', data.status]); break; }
+      if (data.fileName)       rows.push(['File Name',       data.fileName]);
+      if (data.fileType)       rows.push(['File Type',       data.fileType]);
+      if (data.fileSize)       rows.push(['File Size',       data.fileSize]);
+      if (data.signature)      rows.push(['Signature',       data.signature]);
+      if (data.tags)           rows.push(['Tags',            data.tags]);
+      if (data.firstSeen)      rows.push(['First Seen',     data.firstSeen]);
+      if (data.deliveryMethod) rows.push(['Delivery',       data.deliveryMethod]);
+      if (data.originCountry)  rows.push(['Origin Country', data.originCountry]);
+      if (data.reporter)       rows.push(['Reporter',       data.reporter]);
+      if (data.sha256)         rows.push(['SHA-256',        data.sha256]);
+      if (data.md5)            rows.push(['MD5',            data.md5]);
+      if (data.imphash && data.imphash !== '—') rows.push(['Imphash', data.imphash]);
+      break;
+
+    case 'otx':
+      if (data.pulses!=null) rows.push(['Pulses',           data.pulses]);
+      if (data.malwareFamilies && data.malwareFamilies !== 'None') rows.push(['Malware Families', data.malwareFamilies]);
+      if (data.adversaries && data.adversaries !== 'None')         rows.push(['Adversaries',      data.adversaries]);
+      if (data.tags && data.tags !== 'None')                       rows.push(['Tags',             data.tags]);
+      if (data.country)     rows.push(['Country',      data.country]);
+      if (data.asn)         rows.push(['ASN',          data.asn]);
+      if (data.reputation!=null && data.reputation !== '—') rows.push(['Reputation', data.reputation]);
+
+      const otxBaseRows = buildDataTable(rows);
+      let otxExtras = '';
+      if (data.attackIds?.length) {
+        const chips = data.attackIds.map(id =>
+          `<a class="attck-chip" href="${attackUrl(id)}" target="_blank" title="View ${id} on attack.mitre.org">
+             <span class="msym">shield</span>${esc(id)}
+           </a>`).join(' ');
+        otxExtras += `<div class="mt-3"><div class="text-xs font-bold uppercase tracking-widest text-muted mb-1.5">MITRE ATT&CK Techniques</div>
+          <div class="flex flex-wrap gap-1.5">${chips}</div></div>`;
+      }
+      if (data.references && data.references !== 'None') {
+        const refLines = data.references.split('\n').map(r =>
+          `<div class="data-row"><span class="data-val" style="text-align:left;font-size:11px;">${esc(r)}</span></div>`).join('');
+        otxExtras += `<div class="mt-3"><div class="text-xs font-bold uppercase tracking-widest text-muted mb-1.5">References</div>${refLines}</div>`;
+      }
+      return `<div class="px-4 pb-4 pt-1 border-t border-border">${otxBaseRows}${otxExtras}</div>`;
+
+    case 'sucuri':
+      if (data.status)     rows.push(['Status',       data.status]);
+      if (data.blacklisted)rows.push(['Blacklisted',  data.blacklisted]);
+      if (data.malware)    rows.push(['Malware',      data.malware]);
+      if (data.webServer)  rows.push(['Web Server',   data.webServer]);
+      if (data.firewall)   rows.push(['WAF',          data.firewall]);
+      if (data.ip)         rows.push(['IP',           data.ip]);
+      if (data.cms)        rows.push(['CMS',          data.cms]);
+      if (data.httpStatus) rows.push(['HTTP Status',  data.httpStatus]);
+      if (data.redirects)  rows.push(['Redirects',    data.redirects]);
+      break;
+
+    case 'urlscan':
+      if (data.note)        { rows.push(['Status', data.note]); }
+      if (data.verdict)     rows.push(['Verdict',         data.verdict]);
+      if (data.scoreNum!=null) rows.push(['urlscan score', data.scoreNum]);
+      if (data.title && data.title !== '—') rows.push(['Page Title', data.title]);
+      if (data.domain)      rows.push(['Domain',          data.domain]);
+      if (data.ip)          rows.push(['IP',              data.ip]);
+      if (data.country)     rows.push(['Country',         data.country]);
+      if (data.server)      rows.push(['Server',          data.server]);
+      if (data.asn)         rows.push(['ASN',             data.asn]);
+      if (data.asnName)     rows.push(['ASN Name',        data.asnName]);
+      if (data.urlsLoaded!=null)      rows.push(['URLs Loaded',      data.urlsLoaded]);
+      if (data.domainsContacted!=null) rows.push(['Domains Contacted', data.domainsContacted]);
+      if (data.ipsContacted!=null)    rows.push(['IPs Contacted',    data.ipsContacted]);
+      if (data.tags)        rows.push(['Tags',            data.tags]);
+      if (data.reportLink)  rows.push(['Report', `<a href="${esc(data.reportLink)}" target="_blank" style="color:#2563EB;text-decoration:underline;">Open in urlscan.io ↗</a>`]);
+      const tableHTML = buildDataTable(rows);
+      const screenshotHTML = data.screenshot
+        ? `<div class="mt-3"><div class="text-xs font-bold uppercase tracking-widest text-muted mb-1.5">Screenshot</div>
+             <a href="${esc(data.reportLink||data.screenshot)}" target="_blank">
+               <img class="urlscan-screenshot" src="${esc(data.screenshot)}" alt="urlscan screenshot" loading="lazy"
+                    onerror="this.style.display='none'">
+             </a></div>`
+        : '';
+      return `<div class="px-4 pb-4 pt-1 border-t border-border">${tableHTML}${screenshotHTML}</div>`;
+  }
+
+  return `<div class="px-4 pb-4 pt-1 border-t border-border">${buildDataTable(rows)}</div>`;
+}
+
+function buildDataTable(rows) {
+  if (!rows.length) return '<div class="text-xs text-muted pt-2">No data</div>';
+  return '<div class="mt-1.5">' + rows.map(([k,v]) =>
+    `<div class="data-row">
+       <span class="data-key">${esc(String(k))}</span>
+       <span class="data-val">${typeof v === 'string' && !v.startsWith('<span') ? esc(v) : v}</span>
+     </div>`
+  ).join('') + '</div>';
+}
+
+function boolBadge(val, invert=false) {
+  if (val === undefined || val === null) return '<span class="text-muted text-xs">—</span>';
+  const bad = invert ? !val : val;
+  return bad
+    ? `<span class="bool-yes">${val?'Yes':'No'}</span>`
+    : `<span class="bool-no">${val?'Yes':'No'}</span>`;
+}
+
+function toggleCard(modId) {
+  const body = document.getElementById(`body-${modId}`);
+  const btn  = document.getElementById(`expand-${modId}`);
+  if (!body) return;
+  const open = body.classList.contains('collapsed');
+  body.classList.toggle('collapsed', !open);
+  body.classList.toggle('expanded', open);
+  if (btn) btn.querySelector('.msym').textContent = open ? 'expand_less' : 'expand_more';
+}
+
+function copyModData(modId) {
+  if (!state.current) return;
+  const mod = state.current.modules[modId];
+  if (!mod) return;
+  copyToClipboard(JSON.stringify(mod.data, null, 2));
+  showToast(`${MODULE_DEFS[modId]?.name} data copied`);
+}
+
+// ────────────────────────────────────────────────────────
+// UI — RIGHT PANE
+// ────────────────────────────────────────────────────────
+function resetRightPane() {
+  updateRiskGauge(null, null);
+  document.getElementById('risk-indicators').innerHTML =
+    '<div class="text-xs text-muted italic">Scanning…</div>';
+  renderActionButtons({ riskScore:null });
+  renderCsfCoverage(null);
+  document.getElementById('analyst-notes').value = '';
+  document.getElementById('audit-info').textContent = 'Scanning…';
+  document.getElementById('verdict-badge').textContent = 'Scanning…';
+  document.getElementById('verdict-badge').style.background = '#EFF6FF';
+  document.getElementById('verdict-badge').style.color = '#2563EB';
+}
+
+function updateRightPane(inv) {
+  const verdict = getVerdict(inv.riskScore);
+  updateRiskGauge(inv.riskScore, verdict);
+  renderRiskIndicators(inv);
+  renderActionButtons(inv);
+  renderCsfCoverage(inv);
+  document.getElementById('analyst-notes').value = inv.notes || '';
+  const dt = new Date(inv.timestamp);
+  document.getElementById('audit-info').textContent =
+    `L2 · ${dt.toLocaleDateString()} ${dt.toTimeString().slice(0,5)} · ${inv.type}`;
+}
+
+function updateRiskGauge(score, verdict) {
+  const arc   = document.getElementById('gauge-arc');
+  const score_ = document.getElementById('gauge-score');
+  const badge  = document.getElementById('verdict-badge');
+
+  if (score == null || !verdict) {
+    arc.setAttribute('stroke-dashoffset', GAUGE_ARC);
+    arc.setAttribute('stroke', '#E2E8F0');
+    score_.textContent = '--';
+    score_.style.color = '#94A3B8';
+    if (!document.getElementById('scan-status-bar').classList.contains('hidden')) return; // don't reset during scan
+    badge.textContent = 'No Assessment';
+    badge.style.background = '#F1F5F9';
+    badge.style.color = '#94A3B8';
+    return;
+  }
+
+  const offset = GAUGE_ARC * (1 - score / 100);
+  arc.setAttribute('stroke-dashoffset', offset.toFixed(1));
+  arc.setAttribute('stroke', verdict.gc);
+  score_.textContent = score;
+  score_.style.color = verdict.gc;
+  badge.textContent = verdict.label.toUpperCase();
+  badge.style.background = verdict.bg;
+  badge.style.color = verdict.color;
+}
+
+function renderRiskIndicators(inv) {
+  const el   = document.getElementById('risk-indicators');
+  const inds = [];
+
+  const vt = inv.modules.virustotal;
+  if (vt?.status === 'complete' && vt.data?.malicious > 0)
+    inds.push({ icon:'security', c:'#DC2626', text:`${vt.data.malicious}/${vt.data.total} VT engines flagged malicious` });
+
+  const ab = inv.modules.abuseipdb;
+  if (ab?.status === 'complete' && ab.data?.confidence > 0)
+    inds.push({ icon:'report', c: ab.data.confidence > 70 ? '#DC2626':'#D97706',
+      text:`AbuseIPDB: ${ab.data.confidence}% confidence · ${ab.data.totalReports?.toLocaleString()} reports` });
+
+  const iq = inv.modules.ipqs;
+  if (iq?.status === 'complete' && iq.data) {
+    const fd = iq.data.fraudScore ?? iq.data.riskScore;
+    if (fd > 50) inds.push({ icon:'grade', c: fd > 75 ? '#DC2626':'#D97706', text:`IPQS score: ${fd}/100` });
+    if (iq.data.proxy)       inds.push({ icon:'vpn_lock',   c:'#D97706', text:'Proxy / anonymizer detected' });
+    if (iq.data.tor)         inds.push({ icon:'dark_mode',  c:'#DC2626', text:'Tor exit node' });
+    if (iq.data.recentAbuse) inds.push({ icon:'history',    c:'#DC2626', text:'Recent abuse activity on record' });
+    if (iq.data.bot)         inds.push({ icon:'smart_toy',  c:'#DC2626', text:'Bot / automated traffic' });
+    if (iq.data.phishing)    inds.push({ icon:'phishing',   c:'#DC2626', text:'Phishing URL detected' });
+    if (iq.data.malware)     inds.push({ icon:'bug_report', c:'#DC2626', text:'Malware distribution detected' });
+  }
+
+  const gn = inv.modules.greynoise;
+  if (gn?.status === 'complete' && gn.data) {
+    const cls = (gn.data.classification||'').toLowerCase();
+    if (cls === 'malicious') inds.push({ icon:'hearing', c:'#DC2626', text:`GreyNoise: Malicious scanner${gn.data.name?' — '+gn.data.name:''}` });
+    else if (gn.data.noise) inds.push({ icon:'hearing', c:'#D97706', text:'GreyNoise: Internet background noise' });
+    if (gn.data.riot) inds.push({ icon:'verified', c:'#059669', text:'GreyNoise RIOT: Known benign service' });
+  }
+
+  const uh = inv.modules.urlhaus;
+  if (uh?.status === 'complete' && uh.score > 0)
+    inds.push({ icon:'bug_report', c: uh.score >= 70 ? '#DC2626':'#D97706', text:`URLhaus: ${uh.summary}` });
+
+  const tf = inv.modules.threatfox;
+  if (tf?.status === 'complete' && tf.score > 0)
+    inds.push({ icon:'pest_control', c:'#DC2626', text:`ThreatFox: ${tf.summary}` });
+
+  const mb = inv.modules.malwarebazaar;
+  if (mb?.status === 'complete' && mb.score > 0)
+    inds.push({ icon:'coronavirus', c:'#DC2626', text:`MalwareBazaar: ${mb.summary}` });
+
+  const sh = inv.modules.shodan;
+  if (sh?.status === 'complete' && sh.data) {
+    if (sh.data.kevRansomware)
+      inds.push({ icon:'enhanced_encryption', c:'#7F1D1D', text:`CISA KEV: Active ransomware exploitation — patch immediately` });
+    else if (sh.data.kevCount)
+      inds.push({ icon:'gavel', c:'#DC2626', text:`CISA KEV: ${sh.data.kevCount} actively exploited vuln(s) on this host` });
+    else if (sh.data.vulnsTotal)
+      inds.push({ icon:'radar', c:'#D97706', text:`Shodan: ${sh.data.vulnsTotal} CVE(s) detected` });
+  }
+
+  const otx = inv.modules.otx;
+  if (otx?.status === 'complete' && otx.data?.attackIds?.length)
+    inds.push({ icon:'shield', c:'#475569', text:`MITRE ATT&CK: ${otx.data.attackIds.length} technique(s) — ${otx.data.attackIds.slice(0,3).join(', ')}${otx.data.attackIds.length>3?'…':''}` });
+
+  const geo = inv.modules.geoip;
+  if (geo?.status === 'complete' && geo.data?.type) {
+    const t = geo.data.type.toLowerCase();
+    if (t.includes('host') || t.includes('data') || t.includes('vps'))
+      inds.push({ icon:'dns', c:'#D97706', text:`Hosting / datacenter IP (${geo.data.type})` });
+  }
+
+  if (!inds.length) {
+    el.innerHTML = '<div class="text-xs text-muted italic">No significant risk indicators found.</div>';
+    return;
+  }
+  el.innerHTML = inds.map(i =>
+    `<div class="flex items-start gap-2 text-xs">
+       <span class="msym sm flex-shrink-0 mt-0.5" style="color:${i.c};">${i.icon}</span>
+       <span style="color:${i.c};font-weight:500;">${esc(i.text)}</span>
+     </div>`
+  ).join('');
+}
+
+// Response actions tagged with NIST CSF 2.0 subcategories
+const ACTION_DEFS = [
+  { icon:'block',               label:'Block on Firewall', color:'#DC2626', bg:'#FEF2F2', csf:['RS.MI-01'], csfTip:'NIST CSF: RS.MI-01 — Incidents are contained' },
+  { icon:'bookmark',            label:'Add to Watchlist',  color:'#D97706', bg:'#FFFBEB', csf:['DE.CM-01'], csfTip:'NIST CSF: DE.CM-01 — Networks/services monitored to find adverse events' },
+  { icon:'confirmation_number', label:'Create Ticket',     color:'#0F172A', bg:'#F1F5F9', csf:['RS.CO-02'], csfTip:'NIST CSF: RS.CO-02 — Internal/external stakeholders notified of incidents' },
+  { icon:'content_copy',        label:'Copy IOC',          color:'#2563EB', bg:'#EFF6FF', csf:['ID.RA-01'], csfTip:'NIST CSF: ID.RA-01 — Vulnerabilities & threats identified, validated, recorded' },
+];
+
+function renderActionButtons(inv) {
+  const el     = document.getElementById('action-buttons');
+  const score  = inv.riskScore;
+  const active = score != null;
+  const high   = score != null && score >= 50;
+
+  el.innerHTML = ACTION_DEFS.map((a,i) => {
+    const enabled = i === 0 ? high : (i === 3 ? true : active);
+    return `<button class="action-btn tip" id="action-${i}"
+       data-tip="${esc(a.csfTip)}"
+       style="background:${enabled?a.bg:'#F1F5F9'};color:${enabled?a.color:'#94A3B8'};${!enabled?'cursor:not-allowed;':''}"
+       ${!enabled?'disabled':''} onclick="execAction(${i},this)">
+       <span class="msym sm">${a.icon}</span>${a.label}
+       <span class="ml-auto" style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;opacity:.6;">${a.csf[0]}</span>
+     </button>`;
+  }).join('');
+}
+
+// Render NIST CSF 2.0 coverage cells based on which functions the investigation has touched
+function renderCsfCoverage(inv) {
+  const el = document.getElementById('csf-coverage');
+  if (!el) return;
+  const touched = computeCsfCoverage(inv);
+  el.innerHTML = Object.values(CSF_FUNCTIONS).map(f => {
+    const isTouched = touched[f.id];
+    const tip = isTouched
+      ? `${f.name} — covered by: ${isTouched.join(', ')}`
+      : `${f.name} — not yet touched`;
+    return `<div class="csf-cell tip ${isTouched?'touched ':''}${f.id}" data-tip="NIST CSF: ${tip}">${f.id}</div>`;
+  }).join('');
+}
+
+function computeCsfCoverage(inv) {
+  const out = { GV:null, ID:null, PR:null, DE:null, RS:null, RC:null };
+  if (!inv) return out;
+  // Modules contribute to CSF functions
+  for (const [modId, mod] of Object.entries(inv.modules || {})) {
+    if (mod.status !== 'complete') continue;
+    const def = MODULE_DEFS[modId];
+    if (!def?.csf) continue;
+    for (const f of def.csf) {
+      out[f] = out[f] || [];
+      out[f].push(def.name);
+    }
+  }
+  // Executed actions also contribute
+  for (const a of inv.actions || []) {
+    const adef = ACTION_DEFS[a.idx];
+    if (!adef) continue;
+    for (const sub of adef.csf) {
+      const f = sub.split('.')[0];
+      out[f] = out[f] || [];
+      out[f].push(adef.label);
+    }
+  }
+  // Dedupe
+  for (const k of Object.keys(out)) {
+    if (out[k]) out[k] = [...new Set(out[k])];
+  }
+  return out;
+}
+
+function execAction(idx, btn) {
+  const inv = state.current;
+  if (!inv) return;
+  const handlers = [
+    () => showToast('Block rule noted — update your firewall policy', 'success'),
+    () => showToast(`${inv.ioc} added to watchlist`, 'success'),
+    () => {
+      const t = `[${new Date().toISOString()}] ThreatSpan IOC Report\nIOC: ${inv.ioc}\nType: ${inv.type}\nRisk Score: ${inv.riskScore}/100\nVerdict: ${inv.verdict}\nAnalyst Notes: ${inv.notes||'none'}`;
+      copyToClipboard(t);
+      showToast('Ticket template copied to clipboard', 'success');
+    },
+    () => { copyToClipboard(inv.ioc); showToast('IOC copied'); },
+  ];
+  if (handlers[idx]) {
+    handlers[idx]();
+    btn.classList.add('executed');
+    const orig = btn.innerHTML;
+    btn.innerHTML = `<span class="msym sm">check_circle</span>Done`;
+    setTimeout(() => { btn.classList.remove('executed'); btn.innerHTML = orig; }, 2500);
+    if (!inv.actions) inv.actions = [];
+    inv.actions.push({ idx, ts: new Date().toISOString() });
+    const si = state.investigations.findIndex(i => i.id === inv.id);
+    if (si !== -1) { state.investigations[si].actions = inv.actions; saveInvestigations(); }
+    renderCsfCoverage(inv);
+  }
+}
+
+function saveNotes() {
+  if (!state.current) return;
+  state.current.notes = document.getElementById('analyst-notes').value;
+  const si = state.investigations.findIndex(i => i.id === state.current.id);
+  if (si !== -1) { state.investigations[si].notes = state.current.notes; saveInvestigations(); }
+}
+
+// ────────────────────────────────────────────────────────
+// UI — HISTORY
+// ────────────────────────────────────────────────────────
+function toggleFilter(label, btn) {
+  if (activeFilters.has(label)) { activeFilters.delete(label); btn.classList.remove('active'); }
+  else                          { activeFilters.add(label);    btn.classList.add('active'); }
+  renderHistory();
+}
+
+function renderHistory() {
+  const el     = document.getElementById('history-list');
+  const search = (document.getElementById('history-search')?.value || '').toLowerCase();
+  let invs     = state.investigations;
+
+  if (search) invs = invs.filter(i =>
+    i.ioc.toLowerCase().includes(search) || (i.type||'').toLowerCase().includes(search)
+  );
+
+  if (activeFilters.size > 0) invs = invs.filter(i => {
+    if (activeFilters.has('Malicious') && i.verdict === 'Malicious')                    return true;
+    if (activeFilters.has('Suspicious') && i.verdict === 'Suspicious')                  return true;
+    if (activeFilters.has('Clean') && (i.verdict==='Clean'||i.verdict==='Likely Clean'))return true;
+    return false;
+  });
+
+  if (!invs.length) {
+    el.innerHTML = `<div class="text-xs text-muted text-center py-6 px-3">${
+      search || activeFilters.size ? 'No matching investigations.' : 'No history yet.'
+    }</div>`;
+    return;
+  }
+
+  const now    = new Date();
+  const groups = {};
+  for (const inv of invs) {
+    const d   = new Date(inv.timestamp);
+    const diff = Math.floor((now - d) / 86400000);
+    const key  = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : d.toLocaleDateString();
+    (groups[key] = groups[key] || []).push(inv);
+  }
+
+  el.innerHTML = Object.entries(groups).map(([g, items]) => `
+    <div class="mb-2">
+      <div class="px-2 pt-2 pb-1 text-xs font-bold uppercase tracking-widest text-muted">${g}</div>
+      ${items.map(inv => {
+        const v      = getVerdict(inv.riskScore);
+        const dot    = v ? v.color : '#CBD5E1';
+        const active = state.current?.id === inv.id;
+        const ts     = new Date(inv.timestamp).toTimeString().slice(0,5);
+        return `
+          <div class="hist-item flex items-center gap-2 px-2 py-2 ${active?'active':''}" onclick="loadInvestigation('${inv.id}')">
+            <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:${dot};"></div>
+            <div class="flex-1 min-w-0">
+              <div class="font-mono text-xs font-medium text-txt truncate">${esc(getDisplayIOC(inv.ioc, inv.type))}</div>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span class="text-xs text-muted">${inv.type||''}</span>
+                ${v ? `<span class="text-xs font-semibold" style="color:${v.color};">${v.label}</span>` : ''}
+              </div>
+            </div>
+            <span class="text-xs text-muted flex-shrink-0">${ts}</span>
+          </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+function loadInvestigation(id) {
+  const inv = state.investigations.find(i => i.id === id);
+  if (!inv) return;
+  cancelScan(true);
+  state.current = inv;
+  currentDefanged = false;
+
+  document.getElementById('ioc-input').value = inv.ioc;
+  setTypeBadge(inv.type);
+
+  const mods = TYPE_MODULES[inv.type] || Object.keys(inv.modules);
+  const container = document.getElementById('module-cards');
+  document.getElementById('empty-state').style.display = 'none';
+  container.style.display = 'flex';
+  container.innerHTML = '';
+  for (const modId of mods) {
+    const el = document.createElement('div');
+    el.id = `card-${modId}`;
+    el.className = 'mod-card';
+    container.appendChild(el);
+    if (inv.modules[modId]) renderModuleCard(modId, inv.modules[modId]);
+  }
+
+  updateRightPane(inv);
+  renderHistory();
+}
+
+// ────────────────────────────────────────────────────────
+// UI — SETTINGS
+// ────────────────────────────────────────────────────────
+function openSettings() {
+  closeHelp();
+  renderSettings();
+  document.getElementById('settings-drawer').classList.add('open');
+  document.getElementById('overlay').classList.add('visible');
+}
+
+function closeSettings() {
+  document.getElementById('settings-drawer').classList.remove('open');
+  if (!document.getElementById('help-drawer').classList.contains('open')) {
+    document.getElementById('overlay').classList.remove('visible');
+  }
+}
+
+function openHelp() {
+  closeSettings();
+  document.getElementById('help-drawer').classList.add('open');
+  document.getElementById('overlay').classList.add('visible');
+}
+
+function closeHelp() {
+  document.getElementById('help-drawer').classList.remove('open');
+  if (!document.getElementById('settings-drawer').classList.contains('open')) {
+    document.getElementById('overlay').classList.remove('visible');
+  }
+}
+
+function closeAllDrawers() {
+  closeSettings();
+  closeHelp();
+}
+
+function renderSettings() {
+  // Mode notice
+  const notice = document.getElementById('mode-notice');
+  if (!IS_LOCAL_SERVER) {
+    notice.style.background = '#FFFBEB';
+    notice.style.color = '#92400E';
+    notice.style.borderColor = '#FDE68A';
+    notice.innerHTML = `<div class="font-bold mb-1 flex items-center gap-1.5"><span class="msym sm" style="color:#D97706;">warning</span>File mode — API keys may not work</div>
+      Run <code style="background:#FEF3C7;padding:1px 5px;border-radius:3px;">node server.js</code> and open
+      <a href="http://localhost:3000" style="text-decoration:underline;">localhost:3000</a> for full API support.`;
+  }
+
+  // API key fields
+  const container = document.getElementById('api-key-fields');
+  container.innerHTML = KEY_DEFS.map(k => {
+    const val = state.apiKeys[k.keyName] || '';
+    const s   = keyStatus[k.keyName] || 'untested';
+    const statusMap = {
+      untested:['Untested','#64748B','#F1F5F9'],
+      valid:   ['Valid ✓',  '#059669','#F0FDF4'],
+      invalid: ['Invalid ✗','#DC2626','#FEF2F2'],
+      limited: ['Rate Limited','#D97706','#FFFBEB'],
+      testing: ['Testing…','#2563EB','#EFF6FF'],
+    };
+    const [sl, sc, sbg] = statusMap[s] || statusMap.untested;
+    return `
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-bold text-txt">${k.label}</label>
+          <span class="pill" style="color:${sc};background:${sbg};">${sl}</span>
+        </div>
+        <div class="flex gap-2">
+          <input type="password" id="key-${k.keyName}" value="${escAttr(val)}"
+            placeholder="${k.placeholder}"
+            class="flex-1 px-3 py-2 rounded-lg border border-border bg-surf-low text-xs font-mono placeholder-muted focus:outline-none focus:ring-1 focus:ring-primary">
+          <button class="btn-ghost text-xs px-3 py-2" onclick="testKey('${k.keyName}')">Test</button>
+        </div>
+        <div class="text-xs text-muted">${k.hint}</div>
+      </div>`;
+  }).join('');
+
+  // Prefs toggle
+  setToggle('defang-track', state.prefs.defang);
+}
+
+async function testKey(keyName) {
+  const el = document.getElementById(`key-${keyName}`);
+  if (!el) return;
+  const key = el.value.trim();
+  if (!key) { showToast('Enter a key first', 'error'); return; }
+  state.apiKeys[keyName] = key;
+  saveApiKeys();
+  keyStatus[keyName] = 'testing';
+  renderSettings();
+
+  try {
+    let ok = false, limited = false, errMsg = '';
+
+    if (keyName === 'vt') {
+      const r = await mkFetch('https://www.virustotal.com/api/v3/ip_addresses/8.8.8.8',
+        { headers:{ 'x-apikey': key } });
+      ok      = r.status === 200 || r.status === 404;
+      limited = r.status === 429;
+      if (!ok && !limited) errMsg = `HTTP ${r.status}`;
+    } else if (keyName === 'abuseipdb') {
+      const r = await mkFetch('https://api.abuseipdb.com/api/v2/check?ipAddress=8.8.8.8&maxAgeInDays=30',
+        { headers:{ 'Key': key, 'Accept':'application/json' } });
+      ok      = r.status === 200;
+      limited = r.status === 429;
+      if (!ok && !limited) errMsg = `HTTP ${r.status}`;
+    } else if (keyName === 'ipqs') {
+      const r = await mkFetch(`https://www.ipqualityscore.com/api/json/ip/${key}/8.8.8.8`);
+      const j = await r.json().catch(()=>({}));
+      ok      = j.success === true;
+      limited = (typeof j.message === 'string' && /insufficient|limit|quota|credits/i.test(j.message));
+      if (!ok && !limited) errMsg = j.message || `HTTP ${r.status}`;
+    } else if (keyName === 'shodan') {
+      const r = await mkFetch(`https://api.shodan.io/api-info?key=${encodeURIComponent(key)}`);
+      ok      = r.status === 200;
+      limited = r.status === 429;
+      if (!ok && !limited) errMsg = `HTTP ${r.status}`;
+    } else if (keyName === 'greynoise') {
+      const r = await mkFetch('https://api.greynoise.io/v3/community/8.8.8.8', {
+        headers:{ 'key': key, 'Accept':'application/json' }
+      });
+      ok      = r.status === 200 || r.status === 404;
+      limited = r.status === 429;
+      if (!ok && !limited) errMsg = `HTTP ${r.status}`;
+    } else if (keyName === 'otx') {
+      const r = await mkFetch('https://otx.alienvault.com/api/v1/indicators/IPv4/8.8.8.8/general', {
+        headers:{ 'X-OTX-API-KEY': key, 'Accept':'application/json' }
+      });
+      ok      = r.status === 200;
+      limited = r.status === 429;
+      if (!ok && !limited) errMsg = `HTTP ${r.status}`;
+    } else if (keyName === 'abusech') {
+      const r = await mkFetch('https://urlhaus-api.abuse.ch/v1/urls/recent/', {
+        headers:{ 'Auth-Key': key }
+      });
+      ok      = r.status === 200;
+      limited = r.status === 429;
+      if (!ok && !limited) errMsg = `HTTP ${r.status}`;
+    } else if (keyName === 'urlscan') {
+      const r = await mkFetch('https://urlscan.io/user/quotas/', {
+        headers:{ 'API-Key': key, 'Accept':'application/json' }
+      });
+      ok      = r.status === 200;
+      limited = r.status === 429;
+      if (!ok && !limited) errMsg = `HTTP ${r.status}`;
+    }
+
+    keyStatus[keyName] = limited ? 'limited' : ok ? 'valid' : 'invalid';
+    showToast(
+      limited ? 'Key valid but quota exhausted' : ok ? 'Key is valid ✓' : (errMsg || 'Key invalid ✗'),
+      ok ? 'success' : 'error'
+    );
+  } catch(e) {
+    keyStatus[keyName] = 'invalid';
+    showToast('Connection error: ' + e.message, 'error');
+  }
+  renderSettings();
+}
+
+function saveSettings() {
+  for (const k of KEY_DEFS) {
+    const el = document.getElementById(`key-${k.keyName}`);
+    if (el) state.apiKeys[k.keyName] = el.value.trim();
+  }
+  saveApiKeys();
+  closeSettings();
+  showToast('Settings saved', 'success');
+}
+
+function clearHistory() {
+  if (!confirm('Clear all investigation history?')) return;
+  state.investigations = [];
+  saveInvestigations();
+  renderHistory();
+  showToast('History cleared');
+}
+
+function clearAllData() {
+  if (!confirm('Clear all data including API keys? This cannot be undone.')) return;
+  ['threatspan_inv','threatspan_keys','threatspan_prefs'].forEach(k => localStorage.removeItem(k));
+  state.investigations = []; state.apiKeys = {}; state.prefs = { defang:false };
+  state.current = null;
+  renderHistory();
+  newInvestigation();
+  closeSettings();
+  showToast('All data cleared');
+}
+
+function setToggle(trackId, on) {
+  const track = document.getElementById(trackId);
+  if (!track) return;
+  track.classList.toggle('on', on);
+}
+
+function togglePrefDefang() {
+  state.prefs.defang = !state.prefs.defang;
+  setToggle('defang-track', state.prefs.defang);
+  savePrefsData();
+}
+
+// ────────────────────────────────────────────────────────
+// UI — GENERAL
+// ────────────────────────────────────────────────────────
+function newInvestigation() {
+  cancelScan(true);
+  state.current   = null;
+  currentDefanged = false;
+  document.getElementById('ioc-input').value = '';
+  setTypeBadge(null);
+  document.getElementById('cancel-btn').classList.add('hidden');
+  document.getElementById('module-cards').style.display = 'none';
+  document.getElementById('module-cards').innerHTML = '';
+  document.getElementById('empty-state').style.display = '';
+  updateRiskGauge(null, null);
+  document.getElementById('risk-indicators').innerHTML =
+    '<div class="text-xs text-muted italic">Run an investigation to see risk indicators.</div>';
+  renderActionButtons({ riskScore:null });
+  document.getElementById('analyst-notes').value = '';
+  document.getElementById('audit-info').textContent = 'No active investigation';
+  document.getElementById('verdict-badge').textContent  = 'No Assessment';
+  document.getElementById('verdict-badge').style.background = '#F1F5F9';
+  document.getElementById('verdict-badge').style.color = '#94A3B8';
+  setScanStatus(false);
+  renderHistory();
+  document.getElementById('ioc-input').focus();
+}
+
+function setScanStatus(active, text = '') {
+  const bar = document.getElementById('scan-status-bar');
+  if (active) { bar.classList.remove('hidden'); bar.classList.add('flex'); document.getElementById('scan-status-text').textContent = text; }
+  else        { bar.classList.add('hidden');    bar.classList.remove('flex'); }
+}
+
+const TYPE_COLORS = {
+  'IPv4':'#1D4ED8,#EFF6FF','IPv6':'#1D4ED8,#EFF6FF',
+  'Domain':'#7C3AED,#F5F3FF','URL':'#7C3AED,#F5F3FF',
+  'MD5':'#B45309,#FFFBEB','SHA1':'#B45309,#FFFBEB','SHA256':'#B45309,#FFFBEB',
+};
+const TYPE_ICONS = {
+  'IPv4':'lan','IPv6':'lan','Domain':'language','URL':'link',
+  'MD5':'fingerprint','SHA1':'fingerprint','SHA256':'fingerprint',
+};
+
+function setTypeBadge(type) {
+  const badge = document.getElementById('ioc-type-badge');
+  const icon  = document.getElementById('ioc-bar-icon');
+  const dfBtn = document.getElementById('defang-btn');
+  if (type) {
+    const [color, bg] = (TYPE_COLORS[type] || '#64748B,#F1F5F9').split(',');
+    badge.textContent  = type;
+    badge.style.color  = color;
+    badge.style.background = bg;
+    badge.classList.remove('hidden');
+    icon.textContent   = TYPE_ICONS[type] || 'search';
+    icon.style.color   = color;
+    dfBtn.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+    dfBtn.classList.add('hidden');
+    icon.textContent = 'search';
+    icon.style.color = '#94A3B8';
+  }
+}
+
+function toggleDefang() {
+  const input = document.getElementById('ioc-input');
+  const ioc   = refang(input.value);
+  const type  = detectType(ioc);
+  if (!type || !ioc) return;
+  currentDefanged = !currentDefanged;
+  input.value = currentDefanged ? defangStr(ioc, type) : ioc;
+  showToast(currentDefanged ? 'IOC defanged' : 'IOC refanged');
+}
+
+function showToast(msg, type = 'info') {
+  const el  = document.getElementById('toast');
+  const bgs = { info:'#1E293B', success:'#059669', error:'#DC2626' };
+  el.style.background = bgs[type] || bgs.info;
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.animation = 'toastIn .25s ease-out both';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => {
+    el.style.animation = 'toastOut .3s ease-out both';
+    setTimeout(() => { el.style.display = 'none'; }, 300);
+  }, 2800);
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+  });
+}
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escAttr(s) {
+  if (s == null) return '';
+  return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ────────────────────────────────────────────────────────
+// EXPORT — multiple formats
+// ────────────────────────────────────────────────────────
+function toggleExportMenu(e, which='header') {
+  e?.stopPropagation();
+  const id = which === 'right' ? 'export-menu-right' : 'export-menu-header';
+  const menu = document.getElementById(id);
+  const otherId = which === 'right' ? 'export-menu-header' : 'export-menu-right';
+  document.getElementById(otherId)?.classList.remove('open');
+  menu.classList.toggle('open');
+}
+document.addEventListener('click', () => {
+  document.getElementById('export-menu-header')?.classList.remove('open');
+  document.getElementById('export-menu-right')?.classList.remove('open');
+});
+
+function exportReport(format = 'txt') {
+  document.getElementById('export-menu-header')?.classList.remove('open');
+  document.getElementById('export-menu-right')?.classList.remove('open');
+  if (format === 'csv') return exportHistoryCSV();
+  const inv = state.current;
+  if (!inv) { showToast('No active investigation to export', 'error'); return; }
+  let content, mime, ext;
+  switch (format) {
+    case 'md':        ({ content, mime, ext } = buildMarkdownReport(inv));     break;
+    case 'json':      ({ content, mime, ext } = buildJsonReport(inv));         break;
+    case 'stix':      ({ content, mime, ext } = buildStixBundle(inv));         break;
+    case 'misp':      ({ content, mime, ext } = buildMispEvent(inv));          break;
+    case 'navigator': {
+      const result = buildNavigatorLayer(inv);
+      if (!result) { showToast('No MITRE ATT&CK techniques found in this investigation', 'error'); return; }
+      ({ content, mime, ext } = result);
+      break;
+    }
+    case 'csf':       ({ content, mime, ext } = buildCsfReport(inv));            break;
+    default:          ({ content, mime, ext } = buildTxtReport(inv));
+  }
+  const blob = new Blob([content], { type: mime });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `threatspan-${inv.ioc.replace(/[^a-zA-Z0-9]/g,'-')}-${Date.now()}.${ext}`;
+  a.click();
+  showToast(`Exported as ${ext.toUpperCase()}`, 'success');
+}
+
+function buildTxtReport(inv) {
+  const lines = [
+    '='.repeat(62),
+    'THREATSPAN — INVESTIGATION REPORT',
+    '='.repeat(62), '',
+    `IOC:        ${inv.ioc}`,
+    `Type:       ${inv.type}`,
+    `Playbook:   ${PLAYBOOKS[inv.playbook]?.name || 'Full Profile'}`,
+    `Timestamp:  ${new Date(inv.timestamp).toISOString()}`,
+    `Risk Score: ${inv.riskScore ?? 'N/A'} / 100`,
+    `Verdict:    ${inv.verdict || 'N/A'}`,
+    '', '-'.repeat(62), 'MODULE RESULTS', '-'.repeat(62),
+  ];
+  for (const [modId, mod] of Object.entries(inv.modules)) {
+    const def = MODULE_DEFS[modId];
+    lines.push('', `[${(def?.name || modId).toUpperCase()}]  ${mod.status.toUpperCase()}${mod.score != null ? `  Score: ${mod.score}/100` : ''}`);
+    lines.push(`Summary: ${mod.summary || '-'}`);
+    if (mod.data) for (const [k,v] of Object.entries(mod.data)) {
+      if (v != null && v !== '' && typeof v !== 'object') lines.push(`  ${k}: ${v}`);
+    }
+  }
+  lines.push('', '-'.repeat(62), 'ANALYST NOTES', '-'.repeat(62), inv.notes || '(none)');
+  lines.push('', '='.repeat(62), `Generated: ${new Date().toISOString()} by ThreatSpan`);
+  return { content: lines.join('\n'), mime:'text/plain', ext:'txt' };
+}
+
+function buildMarkdownReport(inv) {
+  const v = inv.verdict || 'N/A';
+  const score = inv.riskScore ?? 'N/A';
+  const lines = [
+    `# ThreatSpan Investigation: \`${inv.ioc}\``, '',
+    `| Field | Value |`, `|---|---|`,
+    `| **IOC** | \`${inv.ioc}\` |`,
+    `| **Type** | ${inv.type} |`,
+    `| **Playbook** | ${PLAYBOOKS[inv.playbook]?.name || 'Full Profile'} |`,
+    `| **Risk Score** | **${score}** / 100 |`,
+    `| **Verdict** | **${v}** |`,
+    `| **Timestamp** | ${new Date(inv.timestamp).toISOString()} |`,
+    '', '## Module Results', '',
+  ];
+  for (const [modId, mod] of Object.entries(inv.modules)) {
+    const def = MODULE_DEFS[modId];
+    lines.push(`### ${def?.name || modId}`);
+    lines.push(`**Status:** ${mod.status}${mod.score != null ? ` · **Score:** ${mod.score}/100` : ''}`);
+    lines.push(`**Summary:** ${mod.summary || '_no data_'}`);
+    if (mod.data && Object.keys(mod.data).length) {
+      lines.push('', '| Field | Value |', '|---|---|');
+      for (const [k,v] of Object.entries(mod.data)) {
+        if (v != null && v !== '' && typeof v !== 'object') {
+          lines.push(`| ${k} | ${String(v).replace(/\|/g,'\\|').replace(/\n/g,' ')} |`);
+        }
+      }
+    }
+    lines.push('');
+  }
+  lines.push('## Analyst Notes', '', inv.notes || '_(none)_', '');
+  lines.push('---', `*Generated ${new Date().toISOString()} by ThreatSpan*`);
+  return { content: lines.join('\n'), mime:'text/markdown', ext:'md' };
+}
+
+function buildJsonReport(inv) {
+  const out = {
+    threatspan_version: '1.0',
+    generated: new Date().toISOString(),
+    investigation: {
+      id: inv.id, ioc: inv.ioc, type: inv.type,
+      playbook: inv.playbook, riskScore: inv.riskScore, verdict: inv.verdict,
+      timestamp: new Date(inv.timestamp).toISOString(),
+      notes: inv.notes || '',
+      modules: inv.modules,
+      actions: inv.actions || [],
+    }
+  };
+  return { content: JSON.stringify(out, null, 2), mime:'application/json', ext:'json' };
+}
+
+// STIX 2.1 — produce a bundle with an indicator + observed-data + analyst note
+function buildStixBundle(inv) {
+  const id = (prefix) => `${prefix}--${crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(16) + '-' + Math.random().toString(16).slice(2,10))}`;
+  const now = new Date().toISOString();
+  const ts  = new Date(inv.timestamp).toISOString();
+  const indicatorId = id('indicator');
+  const noteId      = id('note');
+
+  const stixType = {
+    'IPv4':'ipv4-addr', 'IPv6':'ipv6-addr', 'Domain':'domain-name',
+    'URL':'url', 'MD5':'file', 'SHA1':'file', 'SHA256':'file'
+  }[inv.type] || 'observable';
+
+  const pattern = (() => {
+    if (inv.type === 'IPv4')   return `[ipv4-addr:value = '${inv.ioc}']`;
+    if (inv.type === 'IPv6')   return `[ipv6-addr:value = '${inv.ioc}']`;
+    if (inv.type === 'Domain') return `[domain-name:value = '${inv.ioc}']`;
+    if (inv.type === 'URL')    return `[url:value = '${inv.ioc.replace(/'/g,"\\'")}']`;
+    if (inv.type === 'MD5')    return `[file:hashes.MD5 = '${inv.ioc}']`;
+    if (inv.type === 'SHA1')   return `[file:hashes.'SHA-1' = '${inv.ioc}']`;
+    if (inv.type === 'SHA256') return `[file:hashes.'SHA-256' = '${inv.ioc}']`;
+    return `[${stixType}:value = '${inv.ioc}']`;
+  })();
+
+  const labels = [];
+  if (inv.verdict === 'Malicious')    labels.push('malicious-activity');
+  else if (inv.verdict === 'Suspicious') labels.push('anomalous-activity');
+  else if (inv.verdict === 'Clean' || inv.verdict === 'Likely Clean') labels.push('benign');
+  else labels.push('unknown');
+
+  const flagged = [];
+  for (const [modId, mod] of Object.entries(inv.modules)) {
+    if (mod.status === 'complete' && mod.score != null && mod.score > 50) {
+      flagged.push(`${MODULE_DEFS[modId]?.name || modId}: ${mod.summary}`);
+    }
+  }
+
+  const indicator = {
+    type: 'indicator',
+    spec_version: '2.1',
+    id: indicatorId,
+    created: now, modified: now,
+    name: `ThreatSpan: ${inv.ioc} (${inv.verdict || 'unknown'})`,
+    description: flagged.length ? flagged.join('\n') : (inv.notes || `ThreatSpan investigation of ${inv.ioc}`),
+    indicator_types: labels,
+    pattern, pattern_type: 'stix',
+    valid_from: ts,
+    confidence: inv.riskScore ?? 50,
+    labels: [`threatspan-verdict-${(inv.verdict||'unknown').toLowerCase().replace(/\s+/g,'-')}`],
+  };
+
+  const objects = [indicator];
+
+  if (inv.notes) {
+    objects.push({
+      type: 'note', spec_version: '2.1', id: noteId,
+      created: now, modified: now,
+      content: inv.notes, abstract: 'Analyst notes', authors: ['SOC Analyst'],
+      object_refs: [indicatorId],
+    });
+  }
+
+  const bundle = { type: 'bundle', id: id('bundle'), objects };
+  return { content: JSON.stringify(bundle, null, 2), mime:'application/json', ext:'json' };
+}
+
+// MISP event format (importable into MISP via JSON event import)
+function buildMispEvent(inv) {
+  const ts = Math.floor(inv.timestamp / 1000);
+  const threatLevel = inv.riskScore == null ? 4 : (inv.riskScore >= 75 ? 1 : (inv.riskScore >= 50 ? 2 : (inv.riskScore >= 25 ? 3 : 4)));
+  // 1=High, 2=Medium, 3=Low, 4=Undefined
+  const mispType = {
+    'IPv4':'ip-dst', 'IPv6':'ip-dst', 'Domain':'domain',
+    'URL':'url', 'MD5':'md5', 'SHA1':'sha1', 'SHA256':'sha256'
+  }[inv.type] || 'other';
+  const category = (inv.type==='MD5'||inv.type==='SHA1'||inv.type==='SHA256') ? 'Payload delivery' : 'Network activity';
+
+  const attributes = [{
+    type: mispType, category, value: inv.ioc, to_ids: inv.verdict === 'Malicious',
+    timestamp: String(ts), distribution: '0', comment: inv.verdict ? `ThreatSpan verdict: ${inv.verdict} (${inv.riskScore ?? 'N/A'}/100)` : ''
+  }];
+
+  // Add per-module enrichment as additional attributes/comments
+  for (const [modId, mod] of Object.entries(inv.modules)) {
+    if (mod.status !== 'complete' || !mod.summary) continue;
+    attributes.push({
+      type: 'comment', category: 'External analysis',
+      value: `[${MODULE_DEFS[modId]?.name || modId}] ${mod.summary}`,
+      to_ids: false, timestamp: String(ts), distribution: '0',
+    });
+  }
+
+  const tags = [];
+  if (inv.verdict) tags.push({ name: `threatspan:verdict="${inv.verdict.toLowerCase()}"`, colour: '#0F172A' });
+  if (inv.playbook) tags.push({ name: `threatspan:playbook="${inv.playbook}"`, colour: '#475569' });
+
+  const event = {
+    Event: {
+      info: `ThreatSpan — ${inv.ioc} (${inv.verdict||'unknown'})`,
+      threat_level_id: String(threatLevel),
+      analysis: '2', // 0=Initial, 1=Ongoing, 2=Completed
+      distribution: '0',
+      published: false,
+      date: new Date(inv.timestamp).toISOString().slice(0,10),
+      timestamp: String(ts),
+      Attribute: attributes,
+      Tag: tags,
+    }
+  };
+  return { content: JSON.stringify(event, null, 2), mime:'application/json', ext:'json' };
+}
+
+// MITRE ATT&CK Navigator layer (drag into https://mitre-attack.github.io/attack-navigator/)
+function buildNavigatorLayer(inv) {
+  const ids = inv.modules?.otx?.data?.attackIds || [];
+  if (!ids.length) return null;
+  const verdictColor = {
+    'Malicious':'#DC2626', 'Suspicious':'#D97706', 'Likely Clean':'#0284C7', 'Clean':'#059669'
+  }[inv.verdict] || '#475569';
+  const layer = {
+    name: `ThreatSpan: ${inv.ioc}`,
+    versions: { attack:'14', navigator:'4.9.1', layer:'4.5' },
+    domain: 'enterprise-attack',
+    description: `MITRE ATT&CK techniques associated with ${inv.ioc} (${inv.type}). Verdict: ${inv.verdict||'unknown'}, score ${inv.riskScore ?? 'N/A'}/100. Sourced from OTX pulses.`,
+    filters: { platforms: ['Windows','Linux','macOS','Network','PRE','Containers','Office Suite','Identity Provider','SaaS','IaaS'] },
+    sorting: 0,
+    layout: { layout:'side', aggregateFunction:'average', showID:false, showName:true, showAggregateScores:false, countUnscored:false },
+    hideDisabled: false,
+    techniques: ids.map(id => ({
+      techniqueID: id,
+      score: inv.riskScore ?? 50,
+      color: '',
+      comment: `ThreatSpan — ${inv.ioc} (${inv.verdict||'unknown'})`,
+      enabled: true,
+      metadata: [
+        { name: 'IOC', value: inv.ioc },
+        { name: 'Type', value: inv.type },
+        { name: 'Risk Score', value: String(inv.riskScore ?? 'N/A') },
+      ],
+      links: [{ label: 'View on attack.mitre.org', url: attackUrl(id) }],
+      showSubtechniques: id.includes('.'),
+    })),
+    gradient: { colors: ['#FEF2F2','#DC2626','#7F1D1D'], minValue: 0, maxValue: 100 },
+    legendItems: [
+      { label: `${inv.verdict || 'Investigation'}: ${inv.ioc}`, color: verdictColor }
+    ],
+    metadata: [
+      { name: 'Source', value: 'ThreatSpan' },
+      { name: 'Generated', value: new Date().toISOString() },
+    ],
+    showTacticRowBackground: false,
+    selectTechniquesAcrossTactics: true,
+    selectSubtechniquesWithParent: false,
+  };
+  return { content: JSON.stringify(layer, null, 2), mime:'application/json', ext:'json' };
+}
+
+// NIST CSF 2.0 markdown report — organizes findings under the 6 functions
+function buildCsfReport(inv) {
+  const cov = computeCsfCoverage(inv);
+  const lines = [
+    `# NIST CSF 2.0 Investigation Report`,
+    '',
+    `**IOC:** \`${inv.ioc}\`  `,
+    `**Type:** ${inv.type}  `,
+    `**Risk Score:** ${inv.riskScore ?? 'N/A'} / 100  `,
+    `**Verdict:** ${inv.verdict || 'N/A'}  `,
+    `**Generated:** ${new Date().toISOString()}  `,
+    '',
+    `> Findings organized per [NIST Cybersecurity Framework 2.0](https://www.nist.gov/cyberframework). Each function maps to one or more ThreatSpan modules + executed response actions.`,
+    '',
+    '## Coverage Summary',
+    '',
+    '| Function | Status | Contributors |',
+    '|---|---|---|',
+  ];
+  for (const f of Object.values(CSF_FUNCTIONS)) {
+    const c = cov[f.id];
+    lines.push(`| **${f.id}** — ${f.name} | ${c ? '✅ Covered' : '⚪ Not touched'} | ${c ? c.join(', ') : '—'} |`);
+  }
+  lines.push('');
+
+  for (const f of Object.values(CSF_FUNCTIONS)) {
+    lines.push(`## ${f.id} — ${f.name}`);
+    lines.push('');
+    lines.push(`*${f.desc}.*`);
+    lines.push('');
+    const modsForFunction = Object.values(MODULE_DEFS).filter(m => (m.csf||[]).includes(f.id) && inv.modules?.[m.id]?.status === 'complete');
+    const actionsForFunction = (inv.actions || []).filter(a => {
+      const ad = ACTION_DEFS[a.idx];
+      return ad && ad.csf.some(s => s.startsWith(f.id + '.'));
+    });
+    if (!modsForFunction.length && !actionsForFunction.length) {
+      lines.push(`_No coverage for this function in the current investigation._`);
+      lines.push('');
+      continue;
+    }
+    if (modsForFunction.length) {
+      lines.push(`**Module findings:**`);
+      lines.push('');
+      for (const m of modsForFunction) {
+        const r = inv.modules[m.id];
+        const score = r.score != null ? ` _(score ${r.score}/100)_` : '';
+        lines.push(`- **${m.name}**${score}: ${r.summary || '—'}`);
+      }
+      lines.push('');
+    }
+    if (actionsForFunction.length) {
+      lines.push(`**Response actions taken:**`);
+      lines.push('');
+      for (const a of actionsForFunction) {
+        const ad = ACTION_DEFS[a.idx];
+        lines.push(`- **${ad.label}** (${ad.csf.join(', ')}) — \`${a.ts}\``);
+      }
+      lines.push('');
+    }
+  }
+
+  if (inv.notes) {
+    lines.push('## Analyst Notes', '', inv.notes, '');
+  }
+  lines.push('---', `*Generated by ThreatSpan — ${new Date().toISOString()}*`);
+  return { content: lines.join('\n'), mime:'text/markdown', ext:'md' };
+}
+
+function exportHistoryCSV() {
+  if (!state.investigations.length) { showToast('No history to export', 'error'); return; }
+  const rows = [['ioc','type','riskScore','verdict','playbook','timestamp','notes']];
+  for (const inv of state.investigations) {
+    rows.push([
+      inv.ioc, inv.type, inv.riskScore ?? '', inv.verdict || '',
+      inv.playbook || 'full', new Date(inv.timestamp).toISOString(),
+      (inv.notes||'').replace(/"/g,'""').replace(/\n/g,' ')
+    ]);
+  }
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type:'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `threatspan-history-${Date.now()}.csv`;
+  a.click();
+  showToast(`Exported ${state.investigations.length} investigations`, 'success');
+}
+
+// ────────────────────────────────────────────────────────
+// PLAYBOOKS
+// ────────────────────────────────────────────────────────
+function renderPlaybookChips() {
+  const c = document.getElementById('playbook-chips');
+  if (!c) return;
+  // Estimate API reduction vs Full for IPv4 (most common case — 11 modules in Full)
+  const fullCount = TYPE_MODULES['IPv4'].length;
+  c.innerHTML = '<span class="text-xs text-muted font-medium tip mr-1" data-tip="Playbooks pre-select the modules to run for a specific scenario. Fewer modules = fewer API calls used per investigation. Click any chip to switch.">Playbook:</span>' +
+    Object.values(PLAYBOOKS).map(p => {
+    const modCount = p.modules ? p.modules.length : fullCount;
+    const reduction = p.modules ? Math.round((1 - modCount/fullCount) * 100) : 0;
+    const tip = `${esc(p.name)} — ${esc(p.desc)}.\n\n` +
+                (p.modules
+                  ? `Runs ${modCount} of ${fullCount} IP modules (~${reduction}% fewer API calls).`
+                  : `Runs every applicable module — most thorough, highest API usage.`) +
+                (p.notes ? `\n\nPre-fills analyst notes with a checklist for this scenario.` : '');
+    return `
+    <button class="pb-chip tip${activePlaybook===p.id?' active':''}" onclick="selectPlaybook('${p.id}')" data-tip="${tip}">
+      <span class="msym">${p.icon}</span>${esc(p.name)}
+    </button>`;
+  }).join('');
+}
+function selectPlaybook(id) {
+  if (!PLAYBOOKS[id]) return;
+  activePlaybook = id;
+  renderPlaybookChips();
+  if (id !== 'full') showToast(`Playbook: ${PLAYBOOKS[id].name}`);
+}
+
+// ────────────────────────────────────────────────────────
+// IOC EXTRACTION (used by bulk + paste detection)
+// ────────────────────────────────────────────────────────
+const IOC_PATTERNS = {
+  IPv4:    /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\[?\.\]?){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g,
+  URL:     /\b(?:hxxps?|https?):\/\/[^\s'"<>()]+/gi,
+  Domain:  /\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\[?\.\]?)+(?:com|net|org|io|co|uk|ru|cn|de|fr|jp|info|biz|me|tv|cc|app|dev|xyz|top|online|site|tech|store|shop|news|blog|gov|edu|mil|au|ca|nl|it|es|br|in|kr|tw|hk|sg|tr|pl|se|no|dk|fi|gr|cz|ar|mx|cl|pe|ve|sa|ae|ng|za|eg|il|by|ua|ro|kz|ph|vn|id|my|th|nz|ch|at|be|hu|pt|ie|sk|bg|hr|si|lt|lv|ee|is|lu|mt|cy|li|mc|sm|va|ad|gi|im|je|gg|fo|gl)\b/gi,
+  MD5:     /\b[a-fA-F0-9]{32}\b/g,
+  SHA1:    /\b[a-fA-F0-9]{40}\b/g,
+  SHA256:  /\b[a-fA-F0-9]{64}\b/g,
+};
+
+function extractIOCs(text) {
+  const found = new Map(); // key: refanged value, val: type
+  for (const [type, re] of Object.entries(IOC_PATTERNS)) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      let v = refang(m[0]);
+      // Hash precedence: longer beats shorter (don't double-count SHA256 as MD5)
+      if (type === 'MD5' && (found.has(v) || /[a-f0-9]{40,}/i.test(v))) continue;
+      if (type === 'SHA1' && /[a-f0-9]{64}/i.test(v.slice(0,64))) continue;
+      // Skip if it'd be a stricter type already found
+      const existing = found.get(v);
+      if (existing) {
+        const order = ['SHA256','SHA1','MD5','URL','IPv4','Domain'];
+        if (order.indexOf(existing) < order.indexOf(type)) continue;
+      }
+      // Validate IPv4 octets
+      if (type === 'IPv4') {
+        if (!v.split('.').every(n => Number(n) >= 0 && Number(n) <= 255)) continue;
+        if (v === '0.0.0.0' || v === '127.0.0.1' || v === '255.255.255.255') continue;
+      }
+      // Skip Domain if it contains common file extensions or looks like a version
+      if (type === 'Domain') {
+        if (/\.(exe|dll|jpg|png|gif|pdf|doc|xls|zip|rar|tar|gz)$/i.test(v)) continue;
+      }
+      found.set(v, type);
+    }
+  }
+  // Re-map to array sorted by type priority
+  const order = ['IPv4','SHA256','SHA1','MD5','URL','Domain'];
+  return [...found.entries()]
+    .map(([value, type]) => ({ value, type }))
+    .sort((a,b) => order.indexOf(a.type) - order.indexOf(b.type) || a.value.localeCompare(b.value));
+}
+
+// ────────────────────────────────────────────────────────
+// BULK MODAL
+// ────────────────────────────────────────────────────────
+let bulkExtracted = [];
+let bulkSelected  = new Set();
+
+function openBulkModal() {
+  document.getElementById('bulk-overlay').classList.add('visible');
+  document.getElementById('bulk-modal').classList.add('open');
+  setTimeout(() => document.getElementById('bulk-input').focus(), 100);
+}
+function closeBulkModal() {
+  document.getElementById('bulk-overlay').classList.remove('visible');
+  document.getElementById('bulk-modal').classList.remove('open');
+}
+
+function extractBulkIOCs() {
+  const txt = document.getElementById('bulk-input').value;
+  bulkExtracted = extractIOCs(txt);
+  bulkSelected = new Set(bulkExtracted.map(i => i.value));
+  const summary = document.getElementById('bulk-extract-summary');
+  if (!bulkExtracted.length) {
+    summary.textContent = 'No IOCs detected';
+    document.getElementById('bulk-results').classList.add('hidden');
+    document.getElementById('bulk-run-btn').disabled = true;
+    return;
+  }
+  const counts = bulkExtracted.reduce((a,i) => (a[i.type]=(a[i.type]||0)+1, a), {});
+  summary.textContent = `${bulkExtracted.length} IOC${bulkExtracted.length>1?'s':''} found · ` +
+    Object.entries(counts).map(([t,c]) => `${c} ${t}`).join(', ');
+  renderBulkList();
+  document.getElementById('bulk-results').classList.remove('hidden');
+  document.getElementById('bulk-run-btn').disabled = false;
+}
+
+function renderBulkList() {
+  const c = document.getElementById('bulk-list');
+  c.innerHTML = bulkExtracted.map(i => {
+    const checked = bulkSelected.has(i.value);
+    const color = TYPE_ICONS[i.type] ? '#475569' : '#94A3B8';
+    return `<div class="bulk-ioc-row${checked?' checked':''}" onclick="bulkToggle('${escAttr(i.value)}')">
+      <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation();bulkToggle('${escAttr(i.value)}')" style="accent-color:#0F172A;">
+      <span class="font-mono text-xs flex-1" style="word-break:break-all;color:#1E293B;">${esc(i.value)}</span>
+      <span class="pill" style="background:#F1F5F9;color:${color};font-weight:600;font-size:10px;">${i.type}</span>
+    </div>`;
+  }).join('');
+}
+function bulkToggle(val) {
+  if (bulkSelected.has(val)) bulkSelected.delete(val); else bulkSelected.add(val);
+  renderBulkList();
+}
+function bulkSelectAll(yes) {
+  bulkSelected = yes ? new Set(bulkExtracted.map(i => i.value)) : new Set();
+  renderBulkList();
+}
+
+async function runBulkInvestigations() {
+  const targets = bulkExtracted.filter(i => bulkSelected.has(i.value));
+  if (!targets.length) return;
+  bulkRunning = true;
+  document.getElementById('bulk-progress-section').classList.remove('hidden');
+  document.getElementById('bulk-run-btn').disabled = true;
+  let done = 0;
+  for (const t of targets) {
+    if (!bulkRunning) break;
+    document.getElementById('bulk-progress-label').textContent = `Investigating ${t.value}…`;
+    document.getElementById('bulk-progress-count').textContent = `${done}/${targets.length}`;
+    document.getElementById('bulk-progress-fill').style.width = `${(done/targets.length)*100}%`;
+    try { await startInvestigation(t.value); } catch (e) { console.warn('bulk skip:', t.value, e); }
+    done++;
+  }
+  document.getElementById('bulk-progress-fill').style.width = '100%';
+  document.getElementById('bulk-progress-count').textContent = `${done}/${targets.length}`;
+  document.getElementById('bulk-progress-label').textContent = `Bulk investigation complete`;
+  bulkRunning = false;
+  showToast(`Investigated ${done} IOC${done>1?'s':''}`, 'success');
+  setTimeout(closeBulkModal, 1200);
+}
+
+// ────────────────────────────────────────────────────────
+// CLIPBOARD + URL params
+// ────────────────────────────────────────────────────────
+async function pasteFromClipboard() {
+  try {
+    const txt = await navigator.clipboard.readText();
+    if (!txt) return showToast('Clipboard is empty', 'error');
+    const refanged = refang(txt.trim());
+    const single = detectType(refanged);
+    if (single) {
+      document.getElementById('ioc-input').value = refanged;
+      onIOCInput();
+      analyzeIOC();
+    } else {
+      // Multi-IOC text — open bulk modal
+      openBulkModal();
+      document.getElementById('bulk-input').value = txt;
+      extractBulkIOCs();
+    }
+  } catch (e) {
+    showToast('Clipboard access denied — paste with ⌘V instead', 'error');
+  }
+}
+
+function onIOCPaste(e) {
+  // After paste settles, check if multi-IOC
+  setTimeout(() => {
+    const txt = document.getElementById('ioc-input').value;
+    if (!txt) return;
+    const iocs = extractIOCs(txt);
+    if (iocs.length > 1) {
+      // More than one IOC — auto-open bulk
+      document.getElementById('ioc-input').value = '';
+      onIOCInput();
+      openBulkModal();
+      document.getElementById('bulk-input').value = txt;
+      extractBulkIOCs();
+    }
+  }, 0);
+}
+
+function processUrlParams() {
+  const params = new URLSearchParams(window.location.search);
+  const ioc = params.get('ioc') || params.get('investigate') || params.get('q');
+  const playbook = params.get('playbook');
+  if (playbook && PLAYBOOKS[playbook]) selectPlaybook(playbook);
+  if (ioc) {
+    const refanged = refang(ioc);
+    const type = detectType(refanged);
+    if (type) {
+      document.getElementById('ioc-input').value = refanged;
+      onIOCInput();
+      setTimeout(() => analyzeIOC(), 200);
+    } else {
+      // Treat as bulk text
+      openBulkModal();
+      document.getElementById('bulk-input').value = ioc;
+      extractBulkIOCs();
+    }
+    // Clean URL so reload doesn't re-trigger
+    const cleanUrl = window.location.pathname + window.location.hash;
+    history.replaceState({}, '', cleanUrl);
+  }
+}
+
+// ────────────────────────────────────────────────────────
+// IOC INPUT HANDLERS
+// ────────────────────────────────────────────────────────
+function onIOCInput() {
+  const val  = document.getElementById('ioc-input').value;
+  const type = detectType(refang(val));
+  setTypeBadge(type);
+  currentDefanged = false;
+}
+
+function onIOCKeydown(e) {
+  if (e.key === 'Enter') { e.preventDefault(); analyzeIOC(); }
+}
+
+function analyzeIOC() {
+  const raw = document.getElementById('ioc-input').value.trim();
+  if (!raw) { document.getElementById('ioc-input').focus(); return; }
+  currentDefanged = false;
+  startInvestigation(raw);
+}
+
+// ────────────────────────────────────────────────────────
+// KEYBOARD SHORTCUTS
+// ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const active  = document.activeElement;
+  const isInput = active.tagName === 'INPUT' || active.tagName === 'TEXTAREA';
+
+  if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && !isInput) {
+    e.preventDefault();
+    const inp = document.getElementById('ioc-input');
+    inp.focus(); inp.select();
+  }
+  if (e.key === 'Escape') {
+    if (document.getElementById('bulk-modal').classList.contains('open')) closeBulkModal();
+    else if (document.getElementById('help-drawer').classList.contains('open')) closeHelp();
+    else if (document.getElementById('settings-drawer').classList.contains('open')) closeSettings();
+    else if (scanRunning) cancelScan();
+  }
+  if (e.key === 'n' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault(); newInvestigation();
+  }
+  // ⌘⇧V — paste from clipboard and analyze
+  if (e.key === 'v' && e.shiftKey && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault(); pasteFromClipboard();
+  }
+  // ⌘B — open bulk modal
+  if (e.key === 'b' && (e.metaKey || e.ctrlKey) && !isInput) {
+    e.preventDefault(); openBulkModal();
+  }
+});
+
+// ────────────────────────────────────────────────────────
+// SERVER HEALTH CHECK
+// ────────────────────────────────────────────────────────
+async function checkServerStatus() {
+  if (!IS_LOCAL_SERVER) {
+    // Show the warning banner
+    document.getElementById('conn-banner').classList.add('show');
+    document.getElementById('server-status-val').innerHTML =
+      '<span class="w-1.5 h-1.5 rounded-full bg-warning inline-block" id="server-dot"></span><span style="color:#D97706;">File mode</span>';
+    return;
+  }
+  try {
+    const r = await fetch('/api/proxy?url=' + encodeURIComponent('https://ipwho.is/8.8.8.8'), { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      document.getElementById('server-status-val').innerHTML =
+        '<span class="w-1.5 h-1.5 rounded-full bg-safe inline-block" id="server-dot"></span><span style="color:#059669;">Connected</span>';
+    }
+  } catch {
+    document.getElementById('server-status-val').innerHTML =
+      '<span class="w-1.5 h-1.5 rounded-full bg-critical inline-block" id="server-dot"></span><span style="color:#DC2626;">Error</span>';
+  }
+}
+
+// ────────────────────────────────────────────────────────
+// INIT
+// ────────────────────────────────────────────────────────
+function init() {
+  loadState();
+  renderHistory();
+  renderPlaybookChips();
+  renderActionButtons({ riskScore:null });
+  document.getElementById('ioc-input').focus();
+  checkServerStatus();
+  processUrlParams();
+}
+
+init();
+</script>
+</body>
+</html>

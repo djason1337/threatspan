@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ThreatSpan — macOS launchd auto-start agent
+
+  This plist makes ThreatSpan start automatically when you log in,
+  running quietly in the background on http://localhost:3000.
+
+  ┌─ INSTALLATION ───────────────────────────────────────────────────────┐
+  │                                                                      │
+  │  1. Replace `/PATH/TO/threatspan` below with the absolute path to    │
+  │     your cloned repo (or wherever threatspan.html + server.js live). │
+  │     Use `pwd` inside the repo to find it.                            │
+  │                                                                      │
+  │  2. Optionally adjust the path to `node` (use `which node`).         │
+  │                                                                      │
+  │  3. Copy this file into LaunchAgents:                                │
+  │       cp examples/com.threatspan.plist ~/Library/LaunchAgents/       │
+  │                                                                      │
+  │  4. Load it:                                                         │
+  │       launchctl load ~/Library/LaunchAgents/com.threatspan.plist     │
+  │                                                                      │
+  │  5. Open http://localhost:3000 — ThreatSpan is now running.          │
+  │                                                                      │
+  │  To stop / uninstall:                                                │
+  │       launchctl unload ~/Library/LaunchAgents/com.threatspan.plist   │
+  │       rm ~/Library/LaunchAgents/com.threatspan.plist                 │
+  │                                                                      │
+  └──────────────────────────────────────────────────────────────────────┘
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.threatspan</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/node</string>
+        <string>/PATH/TO/threatspan/server.js</string>
+        <string>--no-open</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/PATH/TO/threatspan</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/threatspan.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/threatspan.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PORT</key>
+        <string>3000</string>
+        <key>THREATSPAN_NO_OPEN</key>
+        <string>1</string>
+    </dict>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

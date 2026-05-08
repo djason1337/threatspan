@@ -1,0 +1,53 @@
+{
+  "name": "threatspan",
+  "version": "1.0.0",
+  "description": "A fast, keyboard-first investigation workspace for SOC analysts. Enriches IPs / domains / URLs / hashes with VirusTotal, AbuseIPDB, IPQS, Shodan, GreyNoise, URLhaus, ThreatFox, MalwareBazaar, OTX, Sucuri, urlscan.io, GeoIP, DNS, WHOIS — plus CISA KEV cross-reference and MITRE ATT&CK enrichment.",
+  "keywords": [
+    "soc",
+    "security",
+    "threat-intel",
+    "threat-intelligence",
+    "ioc",
+    "investigation",
+    "virustotal",
+    "abuseipdb",
+    "shodan",
+    "greynoise",
+    "mitre",
+    "attack",
+    "cisa-kev",
+    "malware-analysis",
+    "incident-response",
+    "blue-team"
+  ],
+  "homepage": "https://github.com/YOUR_USERNAME/threatspan",
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/threatspan/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/threatspan.git"
+  },
+  "license": "MIT",
+  "main": "server.js",
+  "bin": {
+    "threatspan": "server.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node -e \"console.log('No tests yet — run: npm start')\""
+  },
+  "files": [
+    "server.js",
+    "threatspan.html",
+    "threatspan",
+    "ThreatSpan.command",
+    "examples/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=14"
+  },
+  "preferGlobal": true
+}
