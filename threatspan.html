@@ -345,18 +345,6 @@
       border-top-color: transparent; border-bottom-color: #0F172A;
     }
     @keyframes tipFade { from { opacity:0; transform:translateX(-50%) translateY(2px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
-    /* Right-anchored tooltip — for elements near the right viewport edge */
-    .tip-bottom-left[data-tip]:hover::after,
-    .tip-bottom-left[data-tip]:focus-within::after {
-      bottom: auto; top: calc(100% + 8px);
-      left: auto; right: 0; transform: none;
-    }
-    .tip-bottom-left[data-tip]:hover::before,
-    .tip-bottom-left[data-tip]:focus-within::before {
-      bottom: auto; top: calc(100% + 2px);
-      left: auto; right: 8px; transform: none;
-      border-top-color: transparent; border-bottom-color: #0F172A;
-    }
 
     /* ── Help drawer ───────────────────────────────────── */
     #help-drawer { transition: transform .28s cubic-bezier(.4,0,.2,1); transform: translateX(100%); }
@@ -612,7 +600,7 @@
     </div>
     <button class="btn-icon tip tip-bottom" onclick="openHelp()" data-tip="Help & guided tour"><span class="msym">help_outline</span></button>
     <div class="relative">
-      <button class="btn-icon tip tip-bottom-left" onclick="toggleExportMenu(event)" data-tip="Export: TXT, MD, JSON, STIX 2.1, MISP, ATT&CK Navigator, NIST CSF 2.0, CSV"><span class="msym">download</span></button>
+      <button class="btn-icon tip tip-bottom" onclick="toggleExportMenu(event)" data-tip="Export: TXT, MD, JSON, STIX 2.1, MISP, ATT&CK Navigator, NIST CSF 2.0, CSV"><span class="msym">download</span></button>
       <div id="export-menu-header" class="export-menu" onclick="event.stopPropagation()">
         <button onclick="exportReport('txt')"><span class="msym sm">description</span> Plain text (.txt)</button>
         <button onclick="exportReport('md')"><span class="msym sm">article</span> Markdown (.md)</button>
