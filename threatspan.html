@@ -1190,7 +1190,11 @@ async function queryVirusTotal(ioc, type, signal) {
     const undet = stats.undetected || 0;
     const total = mal + sus + harm + undet + (stats.timeout || 0);
     const ratio = total > 0 ? mal / total : 0;
-    const score = Math.min(100, Math.round(ratio * 110 + (sus / (total || 1)) * 20));
+    let score = Math.min(100, Math.round(ratio * 110 + (sus / (total || 1)) * 20));
+    // Absolute malicious count floors — ratio alone under-scores when engine pools are large
+    if      (mal >= 10) score = Math.max(score, 75);
+    else if (mal >= 5)  score = Math.max(score, 50);
+    else if (mal >= 3)  score = Math.max(score, 35);
 
     const engines = attr.last_analysis_results || {};
     const flagged = Object.entries(engines)
@@ -2549,8 +2553,6 @@ function renderRiskIndicators(inv) {
 
 // Response actions tagged with NIST CSF 2.0 subcategories
 const ACTION_DEFS = [
-  { icon:'block',               label:'Block on Firewall', color:'#DC2626', bg:'#FEF2F2', csf:['RS.MI-01'], csfTip:'NIST CSF: RS.MI-01 — Incidents are contained' },
-  { icon:'bookmark',            label:'Add to Watchlist',  color:'#D97706', bg:'#FFFBEB', csf:['DE.CM-01'], csfTip:'NIST CSF: DE.CM-01 — Networks/services monitored to find adverse events' },
   { icon:'confirmation_number', label:'Create Ticket',     color:'#0F172A', bg:'#F1F5F9', csf:['RS.CO-02'], csfTip:'NIST CSF: RS.CO-02 — Internal/external stakeholders notified of incidents' },
   { icon:'content_copy',        label:'Copy IOC',          color:'#2563EB', bg:'#EFF6FF', csf:['ID.RA-01'], csfTip:'NIST CSF: ID.RA-01 — Vulnerabilities & threats identified, validated, recorded' },
 ];
@@ -2562,7 +2564,7 @@ function renderActionButtons(inv) {
   const high   = score != null && score >= 50;
 
   el.innerHTML = ACTION_DEFS.map((a,i) => {
-    const enabled = i === 0 ? high : (i === 3 ? true : active);
+    const enabled = i === 1 ? true : active;
     return `<button class="action-btn" id="action-${i}"
        style="background:${enabled?a.bg:'#F1F5F9'};color:${enabled?a.color:'#94A3B8'};${!enabled?'cursor:not-allowed;':''}"
        ${!enabled?'disabled':''} onclick="execAction(${i},this)">
@@ -2605,8 +2607,6 @@ function execAction(idx, btn) {
   const inv = state.current;
   if (!inv) return;
   const handlers = [
-    () => showToast('Block rule noted — update your firewall policy', 'success'),
-    () => showToast(`${inv.ioc} added to watchlist`, 'success'),
     () => {
       const t = `[${new Date().toISOString()}] ThreatSpan IOC Report\nIOC: ${inv.ioc}\nType: ${inv.type}\nRisk Score: ${inv.riskScore}/100\nVerdict: ${inv.verdict}\nAnalyst Notes: ${inv.notes||'none'}`;
       copyToClipboard(t);
