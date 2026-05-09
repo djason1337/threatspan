@@ -4,8 +4,6 @@ A fast, keyboard-first investigation workspace for SOC analysts. Paste an IP, do
 
 **Built for analysts who triage at speed:** bulk IOC extraction from email/log paste, investigation playbooks, screenshot capture via urlscan.io, MITRE ATT&CK + CISA KEV cross-reference, and STIX 2.1 / MISP / ATT&CK Navigator export for upstream pipelines.
 
-![screenshot placeholder](https://via.placeholder.com/1200x630/F6F8FA/1E293B?text=ThreatSpan)
-
 ---
 
 ## Install / Run
@@ -164,9 +162,7 @@ For URL/domain investigations, ThreatSpan either pulls the most recent public ur
 ### NIST CSF 2.0 Mapping
 Every module and every response action is mapped to the [NIST Cybersecurity Framework 2.0](https://www.nist.gov/cyberframework):
 
-- **Function badges** on each module card show which of the 6 CSF functions it contributes to (`GV`/`ID`/`PR`/`DE`/`RS`/`RC`)
 - **Subcategory tags** on each response action button (e.g. `RS.MI-01` for "Block on Firewall" → *Incidents are contained*)
-- **Live coverage indicator** in the right pane — six color-coded cells light up as each CSF function gets covered by your investigation. Helps you spot when you've identified and detected, but haven't *responded* yet
 - **NIST CSF 2.0 report export** — markdown report organized under the 6 CSF functions, perfect for compliance reviews and management updates
 
 ### Export Formats
