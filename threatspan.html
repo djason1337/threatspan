@@ -307,35 +307,6 @@
     .attck-chip:hover { background:#0F172A; }
     .attck-chip .msym { font-size:11px; }
 
-    /* ── NIST CSF function badges ──────────────────────── */
-    .csf-badge {
-      display:inline-flex; align-items:center; justify-content:center;
-      min-width:22px; height:16px; padding:0 5px;
-      border-radius:4px; font-family:'JetBrains Mono', monospace;
-      font-size:9px; font-weight:700; letter-spacing:.3px;
-      color:#fff; cursor:help; user-select:none;
-    }
-    .csf-coverage {
-      display:flex; gap:4px; align-items:center;
-      padding:8px 10px; background:#F8FAFC;
-      border:1px solid #E2E8F0; border-radius:8px;
-      margin-top:10px;
-    }
-    .csf-cell {
-      flex:1; height:32px; border-radius:6px;
-      display:flex; align-items:center; justify-content:center;
-      font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:700;
-      color:#94A3B8; background:#F1F5F9; border:1px solid #E2E8F0;
-      cursor:help; transition: all .15s;
-    }
-    .csf-cell.touched { color:#fff; }
-    .csf-cell.touched.GV { background:#475569; border-color:#475569; }
-    .csf-cell.touched.ID { background:#2563EB; border-color:#2563EB; }
-    .csf-cell.touched.PR { background:#059669; border-color:#059669; }
-    .csf-cell.touched.DE { background:#D97706; border-color:#D97706; }
-    .csf-cell.touched.RS { background:#DC2626; border-color:#DC2626; }
-    .csf-cell.touched.RC { background:#7C3AED; border-color:#7C3AED; }
-
     /* ── Tooltip system ────────────────────────────────── */
     .tip { position: relative; }
     .tip[data-tip]:hover::after,
@@ -374,6 +345,18 @@
       border-top-color: transparent; border-bottom-color: #0F172A;
     }
     @keyframes tipFade { from { opacity:0; transform:translateX(-50%) translateY(2px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+    /* Right-anchored tooltip — for elements near the right viewport edge */
+    .tip-bottom-left[data-tip]:hover::after,
+    .tip-bottom-left[data-tip]:focus-within::after {
+      bottom: auto; top: calc(100% + 8px);
+      left: auto; right: 0; transform: none;
+    }
+    .tip-bottom-left[data-tip]:hover::before,
+    .tip-bottom-left[data-tip]:focus-within::before {
+      bottom: auto; top: calc(100% + 2px);
+      left: auto; right: 8px; transform: none;
+      border-top-color: transparent; border-bottom-color: #0F172A;
+    }
 
     /* ── Help drawer ───────────────────────────────────── */
     #help-drawer { transition: transform .28s cubic-bezier(.4,0,.2,1); transform: translateX(100%); }
@@ -441,20 +424,6 @@
     <div class="help-section">
       <h3>Bulk IOC Extraction</h3>
       <p class="text-muted">Click <span class="msym sm">queue</span> or press <span class="help-kbd">⌘B</span>. Paste an entire SIEM alert, email body, or log line — every IPv4, domain, URL, MD5, SHA1, SHA256 (including defanged forms like <code>8[.]8[.]8[.]8</code>, <code>hxxps://</code>) is auto-extracted. Pick which to investigate; each becomes its own history entry.</p>
-    </div>
-
-    <div class="help-section">
-      <h3>NIST CSF 2.0 Coverage</h3>
-      <p class="text-muted mb-2">Every module is mapped to one or more <a href="https://www.nist.gov/cyberframework" target="_blank" class="text-info underline">NIST Cybersecurity Framework 2.0</a> functions. The right pane shows which functions your investigation has touched:</p>
-      <div class="space-y-1">
-        <div class="help-row"><span class="csf-badge" style="background:#475569;">GV</span> <strong>Govern</strong> — strategy, expectations, policy</div>
-        <div class="help-row"><span class="csf-badge" style="background:#2563EB;">ID</span> <strong>Identify</strong> — assets, threats, vulnerabilities, risks</div>
-        <div class="help-row"><span class="csf-badge" style="background:#059669;">PR</span> <strong>Protect</strong> — safeguards to manage cybersecurity risk</div>
-        <div class="help-row"><span class="csf-badge" style="background:#D97706;">DE</span> <strong>Detect</strong> — find &amp; analyze possible attacks</div>
-        <div class="help-row"><span class="csf-badge" style="background:#DC2626;">RS</span> <strong>Respond</strong> — take action on detected incidents</div>
-        <div class="help-row"><span class="csf-badge" style="background:#7C3AED;">RC</span> <strong>Recover</strong> — restore assets &amp; operations</div>
-      </div>
-      <p class="text-xs text-muted mt-2">Use the "NIST CSF 2.0 report" export for a markdown report organized by function — perfect for compliance reporting or board updates.</p>
     </div>
 
     <div class="help-section">
@@ -643,7 +612,7 @@
     </div>
     <button class="btn-icon tip tip-bottom" onclick="openHelp()" data-tip="Help & guided tour"><span class="msym">help_outline</span></button>
     <div class="relative">
-      <button class="btn-icon tip tip-bottom" onclick="toggleExportMenu(event)" data-tip="Export current investigation in 7 formats: TXT, MD, JSON, STIX 2.1, MISP, ATT&CK Navigator, NIST CSF, plus history CSV"><span class="msym">download</span></button>
+      <button class="btn-icon tip tip-bottom-left" onclick="toggleExportMenu(event)" data-tip="Export: TXT, MD, JSON, STIX 2.1, MISP, ATT&CK Navigator, NIST CSF 2.0, CSV"><span class="msym">download</span></button>
       <div id="export-menu-header" class="export-menu" onclick="event.stopPropagation()">
         <button onclick="exportReport('txt')"><span class="msym sm">description</span> Plain text (.txt)</button>
         <button onclick="exportReport('md')"><span class="msym sm">article</span> Markdown (.md)</button>
@@ -808,15 +777,6 @@
         <div id="risk-indicators" class="space-y-1.5">
           <div class="text-xs text-muted italic">Run an investigation to see risk indicators.</div>
         </div>
-      </div>
-
-      <!-- NIST CSF 2.0 Coverage -->
-      <div class="px-4 py-3 border-b border-border">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-bold uppercase tracking-widest text-muted">NIST CSF Coverage</span>
-          <span class="msym sm tip text-muted" data-tip="NIST Cybersecurity Framework 2.0 — shows which of the 6 functions this investigation has touched. Click each cell for details." style="cursor:help;font-size:13px;">help_outline</span>
-        </div>
-        <div id="csf-coverage" class="csf-coverage"></div>
       </div>
 
       <!-- Response Actions -->
@@ -2124,8 +2084,7 @@ function renderModuleCard(modId, result) {
           </div>
           <div class="min-w-0">
             <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="font-semibold text-txt tip" style="font-size:13px;" data-tip="${esc(def.desc||'')}">${def.name}</span>
-              ${(def.csf||[]).map(f => `<span class="csf-badge tip" style="background:${CSF_FUNCTIONS[f].color};" data-tip="NIST CSF — ${CSF_FUNCTIONS[f].name}: ${CSF_FUNCTIONS[f].desc}">${f}</span>`).join('')}
+              <span class="font-semibold text-txt tip tip-bottom" style="font-size:13px;" data-tip="${esc(def.desc||'')}">${def.name}</span>
             </div>
             ${scoreHTML}
           </div>
@@ -2477,7 +2436,6 @@ function resetRightPane() {
   document.getElementById('risk-indicators').innerHTML =
     '<div class="text-xs text-muted italic">Scanning…</div>';
   renderActionButtons({ riskScore:null });
-  renderCsfCoverage(null);
   document.getElementById('analyst-notes').value = '';
   document.getElementById('audit-info').textContent = 'Scanning…';
   document.getElementById('verdict-badge').textContent = 'Scanning…';
@@ -2490,7 +2448,6 @@ function updateRightPane(inv) {
   updateRiskGauge(inv.riskScore, verdict);
   renderRiskIndicators(inv);
   renderActionButtons(inv);
-  renderCsfCoverage(inv);
   document.getElementById('analyst-notes').value = inv.notes || '';
   const dt = new Date(inv.timestamp);
   document.getElementById('audit-info').textContent =
@@ -2618,27 +2575,11 @@ function renderActionButtons(inv) {
 
   el.innerHTML = ACTION_DEFS.map((a,i) => {
     const enabled = i === 0 ? high : (i === 3 ? true : active);
-    return `<button class="action-btn tip" id="action-${i}"
-       data-tip="${esc(a.csfTip)}"
+    return `<button class="action-btn" id="action-${i}"
        style="background:${enabled?a.bg:'#F1F5F9'};color:${enabled?a.color:'#94A3B8'};${!enabled?'cursor:not-allowed;':''}"
        ${!enabled?'disabled':''} onclick="execAction(${i},this)">
        <span class="msym sm">${a.icon}</span>${a.label}
-       <span class="ml-auto" style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;opacity:.6;">${a.csf[0]}</span>
      </button>`;
-  }).join('');
-}
-
-// Render NIST CSF 2.0 coverage cells based on which functions the investigation has touched
-function renderCsfCoverage(inv) {
-  const el = document.getElementById('csf-coverage');
-  if (!el) return;
-  const touched = computeCsfCoverage(inv);
-  el.innerHTML = Object.values(CSF_FUNCTIONS).map(f => {
-    const isTouched = touched[f.id];
-    const tip = isTouched
-      ? `${f.name} — covered by: ${isTouched.join(', ')}`
-      : `${f.name} — not yet touched`;
-    return `<div class="csf-cell tip ${isTouched?'touched ':''}${f.id}" data-tip="NIST CSF: ${tip}">${f.id}</div>`;
   }).join('');
 }
 
@@ -2695,7 +2636,6 @@ function execAction(idx, btn) {
     inv.actions.push({ idx, ts: new Date().toISOString() });
     const si = state.investigations.findIndex(i => i.id === inv.id);
     if (si !== -1) { state.investigations[si].actions = inv.actions; saveInvestigations(); }
-    renderCsfCoverage(inv);
   }
 }
 
