@@ -91,7 +91,7 @@ Browsers block direct API calls from local HTML files (`file://` origin) due to 
 
 ## API Keys
 
-Open **Settings** (gear icon, top-right) and paste your keys. They're saved in `localStorage` — never on disk, never sent anywhere except to the provider they belong to.
+Open **Settings** (gear icon, top-right) and paste your keys. They're encrypted at rest with AES-256-GCM and stored in `keys.json` (project directory). The decryption key is generated on first run and saved to `~/.threatspan_key` (chmod 600, outside the repo) — so `keys.json` on its own is useless if it leaks. Keys are sent only to the provider they belong to.
 
 | Module | Provider | Free Tier |
 |--------|----------|-----------|
@@ -179,7 +179,7 @@ Response actions are tagged with NIST CSF 2.0 subcategories so investigations ca
 ## Privacy & Security
 
 - All data stays on your machine. API calls go from your machine directly to the providers, proxied locally through an explicit host allowlist.
-- API keys live in `localStorage` only — never on disk, never sent anywhere except to the provider they belong to.
+- API keys are encrypted at rest with AES-256-GCM in `keys.json`. The decryption key lives in `~/.threatspan_key` (chmod 600, outside the repo) — even if `keys.json` is exfiltrated, the keys inside stay sealed. Both files are git-ignored.
 - The proxy only listens on `127.0.0.1` — it's not reachable from your network or the internet.
 - No telemetry. No analytics. No phone-home.
 
