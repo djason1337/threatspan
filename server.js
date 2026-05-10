@@ -10,6 +10,14 @@
  *   node server.js --no-open       → starts server, no auto-open
  *   node server.js --port 8080     → custom port
  *   node server.js --help          → show help
+ *
+ * Security model (see SECURITY.md):
+ *   - Bound to 127.0.0.1 only
+ *   - Strict same-origin: no `*` CORS, Origin/Host validated
+ *   - Per-boot session token required on /api/* (CSRF defense)
+ *   - SSRF defense: DNS resolved + private/loopback addresses rejected
+ *   - Token-bucket rate limit per upstream host
+ *   - Per-request timeouts on upstream
  */
 
 const http   = require('http');
@@ -18,6 +26,7 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 const os     = require('os');
+const dns    = require('dns').promises;
 const { URL } = require('url');
 const { exec } = require('child_process');
 
@@ -46,19 +55,47 @@ if (args.includes('--version') || args.includes('-v')) {
 const portFlag = args.indexOf('--port');
 const PORT = portFlag !== -1 && args[portFlag + 1] ? parseInt(args[portFlag + 1], 10) : (process.env.PORT || 3000);
 const NO_OPEN = args.includes('--no-open') || process.env.THREATSPAN_NO_OPEN === '1';
-const HTML        = path.join(__dirname, 'threatspan.html');
-const KEYS_FILE   = path.join(__dirname, 'keys.json');
-const SECRET_FILE = path.join(os.homedir(), '.threatspan_key');
+
+// ── State directory ──────────────────────────────────────────────────────────
+// Everything user-owned lives under ~/.threatspan/ (chmod 700) so installs from
+// `npm i -g` don't drop secrets into a global node_modules path.
+const STATE_DIR   = path.join(os.homedir(), '.threatspan');
+const KEYS_FILE   = path.join(STATE_DIR, 'keys.json');
+const SECRET_FILE = path.join(STATE_DIR, 'secret');
+
+// Legacy locations (pre-1.1) — migrated on first boot, then ignored.
+const LEGACY_KEYS_FILE   = path.join(__dirname, 'keys.json');
+const LEGACY_SECRET_FILE = path.join(os.homedir(), '.threatspan_key');
+
+const HTML = path.join(__dirname, 'threatspan.html');
+
+function ensureStateDir() {
+  try { fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 }); } catch {}
+  try { fs.chmodSync(STATE_DIR, 0o700); } catch {}
+}
 
 // ── Encryption (AES-256-GCM) ─────────────────────────────────────────────────
-// Secret key lives in ~/.threatspan_key (outside project, chmod 600).
-// keys.json on its own is useless without it.
 function loadOrCreateSecret() {
+  ensureStateDir();
+
+  // Migrate legacy secret if present and new one isn't
+  if (!fs.existsSync(SECRET_FILE) && fs.existsSync(LEGACY_SECRET_FILE)) {
+    try {
+      const raw = fs.readFileSync(LEGACY_SECRET_FILE, 'utf8');
+      fs.writeFileSync(SECRET_FILE, raw, { mode: 0o600 });
+      fs.chmodSync(SECRET_FILE, 0o600);
+      console.log(`  ✦  Migrated encryption key → ${SECRET_FILE}`);
+    } catch (e) {
+      console.error(`  ✗ Could not migrate legacy secret: ${e.message}`);
+    }
+  }
+
   try {
     return Buffer.from(fs.readFileSync(SECRET_FILE, 'utf8').trim(), 'hex');
   } catch {
     const key = crypto.randomBytes(32);
     fs.writeFileSync(SECRET_FILE, key.toString('hex') + '\n', { mode: 0o600 });
+    try { fs.chmodSync(SECRET_FILE, 0o600); } catch {}
     console.log(`  ✦  Encryption key created at ${SECRET_FILE}`);
     return key;
   }
@@ -80,6 +117,17 @@ function decryptKeys(raw) {
 }
 
 function readKeys() {
+  // Migrate legacy keys.json once
+  if (!fs.existsSync(KEYS_FILE) && fs.existsSync(LEGACY_KEYS_FILE)) {
+    try {
+      fs.copyFileSync(LEGACY_KEYS_FILE, KEYS_FILE);
+      try { fs.chmodSync(KEYS_FILE, 0o600); } catch {}
+      console.log(`  ✦  Migrated keys → ${KEYS_FILE}`);
+    } catch (e) {
+      console.error(`  ✗ Could not migrate legacy keys: ${e.message}`);
+    }
+  }
+
   try {
     const raw    = fs.readFileSync(KEYS_FILE, 'utf8');
     const parsed = JSON.parse(raw);
@@ -93,10 +141,49 @@ function readKeys() {
 }
 
 function writeKeys(obj) {
+  ensureStateDir();
   fs.writeFileSync(KEYS_FILE, encryptKeys(obj), 'utf8');
+  try { fs.chmodSync(KEYS_FILE, 0o600); } catch {}
 }
 
-// Allowlist — only proxy requests to these upstream hosts
+// ── Session token (CSRF defense) ─────────────────────────────────────────────
+// Random per-boot. Injected into served HTML, required on every /api/* call.
+const SESSION_TOKEN = crypto.randomBytes(32).toString('hex');
+const SESSION_TOKEN_BUF = Buffer.from(SESSION_TOKEN, 'utf8');
+
+function tokenMatches(provided) {
+  if (typeof provided !== 'string') return false;
+  const buf = Buffer.from(provided, 'utf8');
+  if (buf.length !== SESSION_TOKEN_BUF.length) return false;
+  return crypto.timingSafeEqual(buf, SESSION_TOKEN_BUF);
+}
+
+// ── Origin / Host validation ─────────────────────────────────────────────────
+const EXPECTED_ORIGINS = new Set([
+  `http://localhost:${PORT}`,
+  `http://127.0.0.1:${PORT}`,
+  `http://[::1]:${PORT}`,
+]);
+const EXPECTED_HOSTS = new Set([
+  `localhost:${PORT}`,
+  `127.0.0.1:${PORT}`,
+  `[::1]:${PORT}`,
+]);
+
+function hostAllowed(req) {
+  const h = (req.headers.host || '').toLowerCase();
+  return EXPECTED_HOSTS.has(h);
+}
+
+function originAllowed(req) {
+  // GET-style same-origin navigations may omit Origin entirely.
+  // /api/* still requires the session token, so an absent Origin alone can't be abused.
+  const o = req.headers.origin;
+  if (!o) return true;
+  return EXPECTED_ORIGINS.has(o.toLowerCase());
+}
+
+// ── Allowlist ────────────────────────────────────────────────────────────────
 const ALLOWED = new Set([
   'www.virustotal.com',
   'api.abuseipdb.com',
@@ -122,26 +209,117 @@ const ALLOWED = new Set([
   'services.nvd.nist.gov',
 ]);
 
-// Headers we forward to the upstream API
 const FORWARD_HEADERS = new Set(['x-apikey', 'key', 'accept', 'content-type', 'authorization', 'x-otx-api-key', 'auth-key', 'api-key']);
 
+// ── Rate limit (token bucket per upstream host) ──────────────────────────────
+// Defends user quotas against runaway pages/scripts.
+// VT free tier is the tightest: 4/min. Default for everything else: 30/min.
+const RATE_LIMITS = {
+  'www.virustotal.com':       { capacity: 4,  refillPerSec: 4 / 60 },
+};
+const DEFAULT_LIMIT = { capacity: 30, refillPerSec: 30 / 60 };
+
+const buckets = new Map();
+function takeToken(host) {
+  const limit = RATE_LIMITS[host] || DEFAULT_LIMIT;
+  const now = Date.now();
+  const b = buckets.get(host) || { tokens: limit.capacity, last: now };
+  const elapsed = (now - b.last) / 1000;
+  b.tokens = Math.min(limit.capacity, b.tokens + elapsed * limit.refillPerSec);
+  b.last = now;
+  if (b.tokens < 1) {
+    buckets.set(host, b);
+    const retry = Math.ceil((1 - b.tokens) / limit.refillPerSec);
+    return { ok: false, retryAfter: retry };
+  }
+  b.tokens -= 1;
+  buckets.set(host, b);
+  return { ok: true };
+}
+
+// ── SSRF defense ─────────────────────────────────────────────────────────────
+// Even allowlisted hostnames could be DNS-rebound to internal IPs.
+// Resolve, validate, then lock the upstream request to the validated address.
+function isPrivateIp(ip) {
+  if (!ip) return true;
+  if (ip.includes(':')) {
+    const lower = ip.toLowerCase();
+    if (lower === '::1' || lower === '::') return true;
+    if (/^f[cd]/.test(lower)) return true;             // fc00::/7 ULA
+    if (/^fe[89ab]/.test(lower)) return true;          // fe80::/10 link-local
+    if (lower.startsWith('::ffff:')) {                  // IPv4-mapped
+      return isPrivateIp(lower.slice(7));
+    }
+    return false;
+  }
+  const p = ip.split('.').map(Number);
+  if (p.length !== 4 || p.some(n => Number.isNaN(n) || n < 0 || n > 255)) return true;
+  const [a, b] = p;
+  if (a === 0)   return true;
+  if (a === 10)  return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;  // CGNAT
+  if (a >= 224)  return true;                          // multicast / reserved / broadcast
+  return false;
+}
+
+async function resolveSafe(hostname) {
+  const addrs = await dns.lookup(hostname, { all: true });
+  if (!addrs.length) throw new Error(`no DNS record for ${hostname}`);
+  for (const a of addrs) {
+    if (isPrivateIp(a.address)) {
+      throw new Error(`refusing to connect to internal address ${a.address}`);
+    }
+  }
+  return addrs[0]; // first is typically OS-preferred
+}
+
 // ── Proxy ────────────────────────────────────────────────────────────────────
-function handleProxy(target, req, res) {
+const UPSTREAM_TIMEOUT_MS = 15000;
+
+async function handleProxy(target, req, res) {
   let parsed;
   try { parsed = new URL(target); } catch {
     res.writeHead(400); res.end('Invalid URL'); return;
   }
 
+  if (parsed.protocol !== 'https:') {
+    res.writeHead(400); res.end('Only https upstreams allowed'); return;
+  }
   if (!ALLOWED.has(parsed.hostname)) {
     res.writeHead(403); res.end(`Host not allowed: ${parsed.hostname}`); return;
   }
 
+  const rl = takeToken(parsed.hostname);
+  if (!rl.ok) {
+    res.setHeader('Retry-After', String(rl.retryAfter));
+    res.writeHead(429); res.end(`Rate limit for ${parsed.hostname}; retry in ${rl.retryAfter}s`);
+    return;
+  }
+
+  let addr;
+  try {
+    addr = await resolveSafe(parsed.hostname);
+  } catch (e) {
+    res.writeHead(502); res.end(`{"error":"${e.message.replace(/"/g, "'")}"}`); return;
+  }
+
+  // Connect directly to the validated IP (locks the request against TOCTOU
+  // DNS rebinding) but present the original hostname for SNI + Host header
+  // so TLS verification and HTTP routing both succeed.
   const options = {
-    hostname: parsed.hostname,
-    port:     443,
-    path:     parsed.pathname + parsed.search,
-    method:   req.method,
-    headers:  { 'user-agent': 'ThreatSpan/1.0' },
+    host:       addr.address,
+    port:       443,
+    path:       parsed.pathname + parsed.search,
+    method:     req.method,
+    servername: parsed.hostname,
+    headers: {
+      'user-agent': 'ThreatSpan/1.0',
+      host: parsed.hostname,
+    },
   };
 
   for (const [k, v] of Object.entries(req.headers)) {
@@ -150,49 +328,122 @@ function handleProxy(target, req, res) {
 
   const upstream = https.request(options, (upRes) => {
     const ct = upRes.headers['content-type'] || 'application/json';
-    res.writeHead(upRes.statusCode, { 'Content-Type': ct });
+    res.writeHead(upRes.statusCode, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
     upRes.pipe(res, { end: true });
   });
 
+  upstream.setTimeout(UPSTREAM_TIMEOUT_MS, () => {
+    upstream.destroy(new Error('upstream timeout'));
+  });
+
   upstream.on('error', (e) => {
-    console.error('[proxy error]', e.message);
-    if (!res.headersSent) { res.writeHead(502); res.end(`{"error":"${e.message}"}`); }
+    console.error('[proxy error]', parsed.hostname, e.message);
+    if (!res.headersSent) {
+      const status = /timeout/i.test(e.message) ? 504 : 502;
+      res.writeHead(status); res.end(`{"error":"${e.message.replace(/"/g, "'")}"}`);
+    } else {
+      try { res.end(); } catch {}
+    }
   });
 
   req.pipe(upstream, { end: true });
 }
 
-// ── HTTP Server ───────────────────────────────────────────────────────────────
-const server = http.createServer((req, res) => {
-  // Universal CORS headers (localhost only)
-  res.setHeader('Access-Control-Allow-Origin',  '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'x-apikey, key, accept, content-type, authorization, x-otx-api-key, auth-key, api-key');
+// ── HTML serve with token injection ──────────────────────────────────────────
+function serveHtml(res) {
+  let html;
+  try {
+    html = fs.readFileSync(HTML, 'utf8');
+  } catch (e) {
+    res.writeHead(500); res.end('Could not read threatspan.html'); return;
+  }
+
+  // Inject the per-boot session token as a meta tag so the page can read it.
+  // Place it immediately after <head> (the page already requires <head> on line 4).
+  const meta = `\n  <meta name="threatspan-token" content="${SESSION_TOKEN}">`;
+  html = html.replace('<head>', `<head>${meta}`);
+
+  res.writeHead(200, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'X-Frame-Options': 'DENY',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    'Cross-Origin-Resource-Policy': 'same-origin',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+  });
+  res.end(html);
+}
+
+// ── HTTP Server ──────────────────────────────────────────────────────────────
+const server = http.createServer(async (req, res) => {
+  // Universal hardening headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-Frame-Options', 'DENY');
+
+  // Reject DNS-rebind attempts at the front door
+  if (!hostAllowed(req)) {
+    res.writeHead(421); res.end('Misdirected request'); return;
+  }
+
+  const isApi = req.url.startsWith('/api/');
+
+  // Strict CORS: same-origin only. /api/* requires same-origin Origin.
+  if (isApi) {
+    if (!originAllowed(req)) {
+      res.writeHead(403); res.end('Origin not allowed'); return;
+    }
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'content-type, x-threatspan-token, x-apikey, key, authorization, x-otx-api-key, auth-key, api-key');
+    }
+    res.setHeader('Cache-Control', 'no-store');
+  }
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  const url = new URL(req.url, `http://localhost:${PORT}`);
+  let url;
+  try { url = new URL(req.url, `http://localhost:${PORT}`); }
+  catch { res.writeHead(400); res.end('Bad request'); return; }
 
-  // GET /api/keys — load persisted keys from disk
+  // Token gate for /api/*
+  if (isApi) {
+    const provided = req.headers['x-threatspan-token'];
+    if (!tokenMatches(provided)) {
+      res.writeHead(401); res.end('Missing or invalid session token'); return;
+    }
+  }
+
+  // GET /api/keys
   if (url.pathname === '/api/keys' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(readKeys()));
     return;
   }
 
-  // POST /api/keys — save keys to disk
+  // POST /api/keys
   if (url.pathname === '/api/keys' && req.method === 'POST') {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let tooBig = false;
+    req.on('data', chunk => {
+      if (tooBig) return;
+      body += chunk;
+      if (body.length > 64 * 1024) { tooBig = true; }
+    });
     req.on('end', () => {
+      if (tooBig) { res.writeHead(413); res.end('Payload too large'); return; }
       try {
         const obj = JSON.parse(body);
-        if (typeof obj !== 'object' || Array.isArray(obj)) throw new Error('expected object');
+        if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) throw new Error('expected object');
         writeKeys(obj);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end('{"ok":true}');
       } catch (e) {
-        res.writeHead(400); res.end(`{"error":"${e.message}"}`);
+        res.writeHead(400); res.end(`{"error":"${e.message.replace(/"/g, "'")}"}`);
       }
     });
     return;
@@ -202,19 +453,16 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/api/proxy') {
     const target = url.searchParams.get('url');
     if (!target) { res.writeHead(400); res.end('Missing ?url='); return; }
-    handleProxy(target, req, res);
+    try { await handleProxy(target, req, res); }
+    catch (e) {
+      if (!res.headersSent) { res.writeHead(500); res.end(`{"error":"${e.message.replace(/"/g, "'")}"}`); }
+    }
     return;
   }
 
-  // Serve threatspan.html for any other path
+  // Static HTML
   if (url.pathname === '/' || url.pathname.endsWith('.html')) {
-    try {
-      const html = fs.readFileSync(HTML);
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(html);
-    } catch (e) {
-      res.writeHead(500); res.end('Could not read threatspan.html');
-    }
+    serveHtml(res);
     return;
   }
 

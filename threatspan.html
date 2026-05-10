@@ -1547,10 +1547,23 @@
       window.location.hostname === '127.0.0.1'
     );
 
+    // Per-boot session token, injected by server.js into <head>. Required on /api/*.
+    const TS_TOKEN = (() => {
+      const m = document.querySelector('meta[name="threatspan-token"]');
+      return m ? m.getAttribute('content') : '';
+    })();
+
+    function tsAuthHeaders(extra) {
+      const h = Object.assign({}, extra || {});
+      if (TS_TOKEN) h['X-ThreatSpan-Token'] = TS_TOKEN;
+      return h;
+    }
+
     function mkFetch(url, options = {}) {
       if (IS_LOCAL_SERVER) {
         const proxyUrl = '/api/proxy?url=' + encodeURIComponent(url);
-        return fetch(proxyUrl, options);
+        const merged = Object.assign({}, options, { headers: tsAuthHeaders(options.headers) });
+        return fetch(proxyUrl, merged);
       }
       // Direct fetch (may fail on some APIs due to CORS)
       return fetch(url, options);
@@ -1687,12 +1700,12 @@
     function saveInvestigations() { localStorage.setItem('threatspan_inv', JSON.stringify(state.investigations.slice(0, 50))); }
     function saveApiKeys() {
       localStorage.setItem('threatspan_keys', JSON.stringify(state.apiKeys));
-      if (IS_LOCAL_SERVER) fetch('/api/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state.apiKeys) }).catch(() => { });
+      if (IS_LOCAL_SERVER) fetch('/api/keys', { method: 'POST', headers: tsAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(state.apiKeys) }).catch(() => { });
     }
 
     async function loadKeysFromServer() {
       try {
-        const r = await fetch('/api/keys');
+        const r = await fetch('/api/keys', { headers: tsAuthHeaders() });
         if (!r.ok) return;
         const keys = await r.json();
         if (keys && typeof keys === 'object' && !Array.isArray(keys)) {
@@ -5003,7 +5016,7 @@
         return;
       }
       try {
-        const r = await fetch('/api/proxy?url=' + encodeURIComponent('https://ipwho.is/8.8.8.8'), { signal: AbortSignal.timeout(3000) });
+        const r = await fetch('/api/proxy?url=' + encodeURIComponent('https://ipwho.is/8.8.8.8'), { headers: tsAuthHeaders(), signal: AbortSignal.timeout(3000) });
         if (r.ok) {
           document.getElementById('server-status-val').innerHTML =
             '<span class="w-1.5 h-1.5 rounded-full bg-safe inline-block" id="server-dot"></span><span style="color:#059669;">Connected</span>';
