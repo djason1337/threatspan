@@ -1413,14 +1413,14 @@
         </div>
 
         <!-- Test-Hash Banner (hidden unless knownHash) -->
-        <div id="test-hash-banner" class="hidden" style="
+        <div id="test-hash-banner" style="
           margin: 0;
           padding: 12px 14px;
           background: #FEF3C7;
           border-top: 1px solid #F59E0B;
           border-bottom: 1px solid #F59E0B;
           border-left: 6px solid #D97706;
-          display: flex;
+          display: none;
           gap: 10px;
           align-items: flex-start;
         ">
@@ -3225,10 +3225,10 @@
     function showTestHashBanner(known) {
       const el = document.getElementById('test-hash-banner');
       if (!el) return;
-      if (!known) { el.classList.add('hidden'); return; }
+      if (!known) { el.style.display = 'none'; return; }
       document.getElementById('test-hash-banner-title').textContent = known.verdict;
       document.getElementById('test-hash-banner-body').textContent = `${known.label}. ${known.explainer}`;
-      el.classList.remove('hidden');
+      el.style.display = 'flex';
     }
 
     function resetRightPane() {
@@ -3623,7 +3623,7 @@
       if (countEl) {
         const allDone = configuredCount === totalCount;
         const storageLabel = IS_LOCAL_SERVER
-          ? '<strong style="color:#2563EB;">keys.json</strong> (local file — survives browser changes)'
+          ? '<strong style="color:#2563EB;">keys.json</strong>'
           : 'browser localStorage';
         countEl.innerHTML = `Keys configured: <strong style="color:${allDone ? '#059669' : '#D97706'}">${configuredCount} / ${totalCount}</strong> — saved to ${storageLabel}`;
       }
@@ -3797,6 +3797,7 @@
       document.getElementById('verdict-badge').textContent = 'No Assessment';
       document.getElementById('verdict-badge').style.background = '#F1F5F9';
       document.getElementById('verdict-badge').style.color = '#94A3B8';
+      showTestHashBanner(null);
       setScanStatus(false);
       renderHistory();
       document.getElementById('ioc-input').focus();
