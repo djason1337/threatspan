@@ -281,6 +281,16 @@
       background: #EEF2F7;
     }
 
+    .hist-item.in-flight {
+      background: linear-gradient(90deg, #EFF6FF 0%, #F8FAFC 60%);
+      animation: histPulse 2.2s ease-in-out infinite;
+    }
+
+    @keyframes histPulse {
+      0%, 100% { background: #F8FAFC; }
+      50% { background: #EFF6FF; }
+    }
+
     /* ── Buttons ───────────────────────────────────────── */
     .btn-primary {
       background: #0F172A;
@@ -525,9 +535,13 @@
 
     /* ── Notes ─────────────────────────────────────────── */
     #analyst-notes {
-      resize: none;
-      font-family: 'Inter', sans-serif;
-      font-size: 12px;
+      resize: vertical;
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11.5px;
+      line-height: 1.45;
+      min-height: 200px;
+      white-space: pre;
+      tab-size: 2;
     }
 
     #analyst-notes:focus {
@@ -1311,7 +1325,7 @@
             style="border-color:#0F172A; height:56px; box-shadow:0 0 0 4px rgba(15,23,42,.05), 0 2px 8px rgba(0,0,0,.06);">
             <span class="msym lg flex-shrink-0 ml-4 mr-2" style="color:#94A3B8;" id="ioc-bar-icon">search</span>
             <input id="ioc-input" type="text"
-              placeholder="Enter IP, Domain, Hash, or URL…  (or paste a log/email for bulk extract)"
+              placeholder="IP, Domain, Hash, URL, or paste a log"
               class="flex-1 bg-transparent border-none focus:ring-0 py-3 pr-2" style="min-width:0;"
               oninput="onIOCInput()" onkeydown="onIOCKeydown(event)" onpaste="onIOCPaste(event)">
             <div class="flex items-center gap-1.5 mr-3 flex-shrink-0">
@@ -1412,7 +1426,7 @@
           </div>
         </div>
 
-        <!-- Test-Hash Banner (hidden unless knownHash) -->
+        <!-- Test-Hash Banner (hidden unless wellKnown) -->
         <div id="test-hash-banner" style="
           margin: 0;
           padding: 12px 14px;
@@ -1453,7 +1467,7 @@
         <!-- Analyst Notes -->
         <div class="px-4 py-3 border-b border-border">
           <div class="text-xs font-bold uppercase tracking-widest text-muted mb-2">Analyst Notes</div>
-          <textarea id="analyst-notes" rows="3" placeholder="Add investigation notes…"
+          <textarea id="analyst-notes" rows="18" placeholder="Run an investigation to populate the analyst brief, or type your own notes…"
             class="w-full rounded-lg border border-border px-2.5 py-2 text-xs bg-surf-low placeholder-muted"
             oninput="saveNotes()"></textarea>
           <div class="mt-1.5 flex items-center justify-between text-xs text-muted">
@@ -1651,6 +1665,10 @@
     };
     let scanRunning = false;
     let abortController = null;
+    // Scans that are still running but no longer the foreground investigation.
+    // Their results still write to history when they finish, but UI updates
+    // are suppressed unless the user navigates back to them.
+    const inFlightScans = new Map();
     let activeFilters = new Set();
     const keyStatus = {};
     let currentDefanged = false;
@@ -1770,6 +1788,363 @@
       return WELL_KNOWN_HASHES[ioc.toLowerCase()] || null;
     }
 
+    // RFC1918 / loopback / link-local / multicast / reserved IP ranges.
+    // External reputation services have no signal for these — flag up-front
+    // so the analyst routes the case through internal asset / NetFlow tooling
+    // instead of waiting on a full module sweep.
+    function lookupWellKnownIP(ioc, type) {
+      if (type !== 'IPv4' && type !== 'IPv6') return null;
+      const v = ioc.trim();
+      const explain = (range, kind) =>
+        `${range} address. Public threat-intel feeds carry no signal for non-routable space. Pivot to internal sources: asset inventory, DHCP logs, NetFlow / EDR telemetry, AD / DNS records.`;
+      if (type === 'IPv4') {
+        const o = v.split('.').map(Number);
+        if (o.length !== 4 || o.some(n => isNaN(n))) return null;
+        const [a, b] = o;
+        if (a === 10) return { kind: 'private', verdict: 'Private IP — Internal Network', label: `RFC1918 private (10.0.0.0/8)`, explainer: explain('Private RFC1918') };
+        if (a === 172 && b >= 16 && b <= 31) return { kind: 'private', verdict: 'Private IP — Internal Network', label: `RFC1918 private (172.16.0.0/12)`, explainer: explain('Private RFC1918') };
+        if (a === 192 && b === 168) return { kind: 'private', verdict: 'Private IP — Internal Network', label: `RFC1918 private (192.168.0.0/16)`, explainer: explain('Private RFC1918') };
+        if (a === 127) return { kind: 'loopback', verdict: 'Loopback — Local Host', label: `Loopback (127.0.0.0/8)`, explainer: 'Loopback address — refers to the host itself. If observed in network telemetry from an external source, the data is malformed or spoofed.' };
+        if (a === 169 && b === 254) return { kind: 'linklocal', verdict: 'Link-Local — Auto-Config', label: `Link-local APIPA (169.254.0.0/16)`, explainer: 'Auto-assigned when DHCP fails. Indicates a host with broken network config, not a threat.' };
+        if (a >= 224 && a <= 239) return { kind: 'multicast', verdict: 'Multicast — Not a Host', label: `Multicast (224.0.0.0/4)`, explainer: 'Multicast group, not an addressable host. Reputation lookups do not apply.' };
+        if (a >= 240) return { kind: 'reserved', verdict: 'Reserved — Not Routable', label: `Reserved (240.0.0.0/4)`, explainer: 'Reserved address space. Should not appear as a real source / destination on the public internet.' };
+        if (a === 0) return { kind: 'reserved', verdict: 'Reserved — Not Routable', label: `Unspecified (0.0.0.0/8)`, explainer: 'Unspecified / current-network range. Not a valid host on the public internet.' };
+        if (a === 100 && b >= 64 && b <= 127) return { kind: 'cgnat', verdict: 'CGNAT — Carrier-Shared', label: `Carrier-grade NAT (100.64.0.0/10)`, explainer: 'Shared by an ISP across many subscribers. Attribution to a single user requires ISP cooperation; reputation alone is unreliable.' };
+        return null;
+      }
+      // IPv6
+      const lc = v.toLowerCase();
+      if (lc === '::1' || lc === '0:0:0:0:0:0:0:1') return { kind: 'loopback', verdict: 'Loopback — Local Host', label: 'IPv6 loopback (::1)', explainer: 'Loopback address — refers to the host itself.' };
+      if (lc === '::' || lc === '0:0:0:0:0:0:0:0') return { kind: 'reserved', verdict: 'Unspecified — Not Routable', label: 'IPv6 unspecified (::)', explainer: 'Unspecified address. Not a valid host.' };
+      if (lc.startsWith('fe8') || lc.startsWith('fe9') || lc.startsWith('fea') || lc.startsWith('feb')) return { kind: 'linklocal', verdict: 'Link-Local — Auto-Config', label: 'IPv6 link-local (fe80::/10)', explainer: 'Link-local scope. Not routable beyond a single segment.' };
+      if (lc.startsWith('fc') || lc.startsWith('fd')) return { kind: 'private', verdict: 'Private IP — Internal Network', label: 'Unique local address (fc00::/7)', explainer: explain('IPv6 unique-local') };
+      if (lc.startsWith('ff')) return { kind: 'multicast', verdict: 'Multicast — Not a Host', label: 'IPv6 multicast (ff00::/8)', explainer: 'Multicast group, not an addressable host.' };
+      return null;
+    }
+
+    // Major hosting / CDN / SaaS platforms that legitimately appear in
+    // URLhaus and ThreatFox because *user-uploaded* abuse content is hosted
+    // on them. Flagging the apex domain as malicious is a category error —
+    // the platform isn't compromised, individual abuse URLs under it are.
+    // Banner reframes findings; scoring skips the "curated feed" floor.
+    const WELL_KNOWN_DOMAINS = new Set([
+      'github.com', 'githubusercontent.com', 'raw.githubusercontent.com',
+      'gist.github.com', 'gitlab.com', 'bitbucket.org',
+      'google.com', 'goo.gl', 'docs.google.com', 'drive.google.com',
+      'sites.google.com', 'storage.googleapis.com', 'firebasestorage.googleapis.com',
+      'appspot.com', 'web.app', 'firebaseapp.com',
+      'microsoft.com', 'office.com', 'live.com', 'sharepoint.com',
+      'onedrive.live.com', '1drv.ms', 'azureedge.net', 'azurewebsites.net',
+      'blob.core.windows.net', 'windows.net',
+      'amazonaws.com', 's3.amazonaws.com', 'cloudfront.net',
+      'cloudflare.com', 'workers.dev', 'pages.dev', 'r2.dev',
+      'discord.com', 'discordapp.com', 'cdn.discordapp.com',
+      'telegram.org', 't.me',
+      'dropbox.com', 'dropboxusercontent.com',
+      'pastebin.com', 'paste.ee', 'hastebin.com', 'ghostbin.com',
+      'mega.nz', 'mediafire.com',
+      'bit.ly', 'tinyurl.com', 'ow.ly', 'is.gd', 't.co',
+      'twitter.com', 'x.com', 'facebook.com', 'fbcdn.net', 'instagram.com',
+      'youtube.com', 'youtu.be', 'reddit.com',
+      'apple.com', 'icloud.com', 'me.com',
+      'wordpress.com', 'wp.com', 'medium.com', 'blogger.com', 'blogspot.com',
+      'wix.com', 'weebly.com', 'squarespace.com',
+      'archive.org', 'web.archive.org',
+    ]);
+    function lookupWellKnownDomain(ioc, type) {
+      if (type !== 'Domain' && type !== 'URL') return null;
+      let host = ioc.toLowerCase();
+      if (type === 'URL') {
+        try { host = new URL(host).hostname; } catch { return null; }
+      }
+      // Match exact or strip subdomains down to the registered apex
+      if (WELL_KNOWN_DOMAINS.has(host)) {
+        return wellKnownPlatform(host);
+      }
+      const parts = host.split('.');
+      for (let i = 1; i < parts.length - 1; i++) {
+        const candidate = parts.slice(i).join('.');
+        if (WELL_KNOWN_DOMAINS.has(candidate)) return wellKnownPlatform(candidate);
+      }
+      return null;
+    }
+    function wellKnownPlatform(host) {
+      return {
+        kind: 'platform',
+        verdict: 'Major Platform — Hits Reflect Hosted Content',
+        label: `${host} is a major hosting / CDN / SaaS platform`,
+        explainer: `URLhaus / ThreatFox hits on this domain represent abuse content uploaded by users, not a compromise of the platform itself. Treat individual full-path URLs as the IOC, not the apex domain. Verdict floor disabled for these feeds.`,
+      };
+    }
+
+    // ────────────────────────────────────────────────────────
+    // ANALYST BRIEF
+    // ────────────────────────────────────────────────────────
+    // Build a copy-paste-ready report from the live scan results. Surface
+    // facts and pivots; do NOT prescribe close / block / escalate decisions —
+    // those belong to the analyst with full event context.
+    function generateAnalystBrief(inv) {
+      const L = []; // line buffer
+      const m = inv.modules || {};
+      const get = id => m[id] && m[id].status === 'complete' ? m[id] : null;
+      const data = id => get(id)?.data || {};
+      const pad = (k, w = 14) => (k + ':').padEnd(w);
+
+      // ── Header ─────────────────────────────────────────────
+      const ts = new Date(inv.timestamp);
+      const tsStr = ts.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+      const geo = data('geoip');
+      const vt = data('virustotal');
+      const asn = geo.asn || vt.asOwner || null;
+      const country = geo.country || vt.country || null;
+      const headerBits = [`IOC: ${inv.ioc}`, `Type: ${inv.type}`];
+      if (asn) headerBits.push(`ASN: ${asn}`);
+      L.push(headerBits.join('    '));
+      const subBits = [`Investigated: ${tsStr}`];
+      if (country) subBits.push(`Country: ${country}`);
+      if (inv.playbook) subBits.push(`Playbook: ${inv.playbook}`);
+      L.push(subBits.join('    '));
+
+      const verdictLabel = inv.wellKnown
+        ? inv.wellKnown.verdict
+        : (inv.verdict || 'No verdict — insufficient signal');
+      const scoreStr = inv.riskScore != null ? `risk score ${inv.riskScore}/100` : 'no numerical score';
+      L.push(`Verdict: ${verdictLabel.toUpperCase()} — ${scoreStr}`);
+      L.push('');
+
+      // ── Well-known override context (private IP / platform / test hash) ──
+      if (inv.wellKnown) {
+        L.push('Context override:');
+        L.push(`  ${inv.wellKnown.label}`);
+        wrapInto(L, inv.wellKnown.explainer, '  ');
+        L.push('');
+      }
+
+      // ── Threat intel block ────────────────────────────────
+      const intelLines = [];
+      const vtMod = get('virustotal');
+      if (vtMod && vtMod.data?.total) {
+        const flagged = (vtMod.data.flagged || []).slice(0, 4).map(f => f.name).join(', ');
+        intelLines.push(`${pad('VirusTotal')}${vtMod.data.malicious}/${vtMod.data.total} engines flagged${vtMod.data.suspicious ? ` · ${vtMod.data.suspicious} suspicious` : ''}. Last analyzed ${vtMod.data.lastScan}.${flagged ? ` Notable: ${flagged}.` : ''}`);
+      } else if (vtMod && vtMod.data?.found === false) {
+        intelLines.push(`${pad('VirusTotal')}Not seen — absence of evidence, not evidence of absence.`);
+      }
+      const ab = get('abuseipdb');
+      if (ab && ab.data) {
+        const cats = ab.data.categories && ab.data.categories !== '—' ? ab.data.categories : '';
+        intelLines.push(`${pad('AbuseIPDB')}${ab.data.confidence ?? ab.score}% confidence, ${ab.data.totalReports || 0} reports/90d${ab.data.lastReported && ab.data.lastReported !== 'Never' ? ` (last ${ab.data.lastReported})` : ''}.${cats ? ` Categories: ${cats}.` : ''}`);
+      }
+      const gn = get('greynoise');
+      if (gn && gn.data) {
+        const cls = gn.data.classification;
+        const tags = [gn.data.name && gn.data.name !== '—' ? gn.data.name : null, gn.data.riot ? 'RIOT (common business service)' : null, gn.data.noise ? 'internet background noise' : null].filter(Boolean).join('; ');
+        intelLines.push(`${pad('GreyNoise')}classification=${cls || 'unknown'}${tags ? `. ${tags}` : ''}.`);
+      }
+      const ipqs = get('ipqs');
+      if (ipqs && ipqs.data) {
+        const flags = [ipqs.data.proxy && 'proxy', ipqs.data.vpn && 'VPN', ipqs.data.tor && 'Tor', ipqs.data.bot && 'bot', ipqs.data.phishing && 'phishing', ipqs.data.malware && 'malware'].filter(Boolean).join(', ');
+        intelLines.push(`${pad('IPQS')}score ${ipqs.score ?? '—'}/100${flags ? `. Flags: ${flags}.` : '.'}`);
+      }
+      const sh = get('shodan');
+      if (sh && sh.data) {
+        const ports = sh.data.ports && sh.data.ports !== 'None' ? sh.data.ports : '';
+        const cveIds = (sh.data.cves || []).slice(0, 4).map(c => c.id || c).join(', ');
+        const kev = sh.data.kevCount ? ` ${sh.data.kevCount} actively exploited (KEV)${sh.data.kevRansomware ? ', ransomware-linked' : ''}.` : '';
+        intelLines.push(`${pad('Shodan')}${sh.data.org && sh.data.org !== '—' ? sh.data.org : (sh.data.isp || 'unknown org')}${ports ? `. Open ports: ${ports}` : ''}${cveIds ? `. CVEs: ${cveIds}` : ''}.${kev}`);
+      }
+      const uh = get('urlhaus');
+      if (uh && uh.score > 0) {
+        intelLines.push(`${pad('URLhaus')}${uh.summary || 'matches present'}.`);
+      }
+      const tf = get('threatfox');
+      if (tf && tf.score > 0) {
+        intelLines.push(`${pad('ThreatFox')}${tf.summary || 'matches present'}.`);
+      }
+      const mb = get('malwarebazaar');
+      if (mb && mb.score > 0) {
+        intelLines.push(`${pad('MalwareBazaar')}${mb.summary || 'sample known'}.`);
+      }
+      const otx = get('otx');
+      if (otx && otx.data && otx.data.pulses > 0) {
+        const fams = otx.data.malwareFamilies && otx.data.malwareFamilies !== 'None' ? ` Family: ${otx.data.malwareFamilies}.` : '';
+        const adv = otx.data.adversaries && otx.data.adversaries !== 'None' ? ` Adversary: ${otx.data.adversaries}.` : '';
+        intelLines.push(`${pad('OTX')}${otx.data.pulses} pulse${otx.data.pulses !== 1 ? 's' : ''}.${fams}${adv}`);
+      }
+      const sucuri = get('sucuri');
+      if (sucuri && sucuri.score > 0) intelLines.push(`${pad('Sucuri')}${sucuri.summary || 'flagged'}.`);
+
+      if (intelLines.length) {
+        L.push('Threat intel:');
+        intelLines.forEach(l => L.push('  ' + l));
+        L.push('');
+      } else if (!inv.wellKnown) {
+        L.push('Threat intel:');
+        L.push('  No reputation signals returned. Either the IOC is unknown to the queried sources, API keys are missing, or queries failed — check module statuses.');
+        L.push('');
+      }
+
+      // ── Network / registration context ────────────────────
+      const ctxLines = [];
+      if (geo.isp && geo.isp !== asn) ctxLines.push(`${pad('ISP')}${geo.isp}`);
+      if (geo.org && geo.org !== asn && geo.org !== geo.isp) ctxLines.push(`${pad('Org')}${geo.org}`);
+      if (geo.city || geo.region) ctxLines.push(`${pad('Location')}${[geo.city, geo.region, country].filter(Boolean).join(', ')}`);
+      const wh = data('whois');
+      if (wh.registered) ctxLines.push(`${pad('Registered')}${wh.registered}`);
+      if (wh.org) ctxLines.push(`${pad('Registrant')}${wh.org}`);
+      if (wh.network) ctxLines.push(`${pad('Network')}${wh.network}`);
+      if (wh.nameservers && wh.nameservers !== '—') ctxLines.push(`${pad('Nameservers')}${wh.nameservers}`);
+      const dnsRec = data('dns').records || {};
+      if (dnsRec.A) ctxLines.push(`${pad('A records')}${dnsRec.A}`);
+      if (dnsRec.PTR) ctxLines.push(`${pad('PTR')}${dnsRec.PTR}`);
+      if (dnsRec.MX) ctxLines.push(`${pad('MX')}${dnsRec.MX}`);
+      if (dnsRec.NS && !wh.nameservers) ctxLines.push(`${pad('Nameservers')}${dnsRec.NS}`);
+      if (ctxLines.length) {
+        L.push('Network / registration context:');
+        ctxLines.forEach(l => L.push('  ' + l));
+        L.push('');
+      }
+
+      // ── Why this matters — adaptive based on signals ──────
+      const why = whyThisMatters(inv);
+      if (why.length) {
+        L.push('Why this matters:');
+        why.forEach(p => wrapInto(L, p, '  '));
+        L.push('');
+      }
+
+      // ── Pivots — type-aware questions, no prescriptions ───
+      const pivots = pivotsFor(inv);
+      if (pivots.length) {
+        L.push('Investigation pivots:');
+        pivots.forEach((p, i) => wrapInto(L, `${i + 1}. ${p}`, '  '));
+        L.push('');
+      }
+
+      // ── Containment options — list, do not prescribe ──────
+      const opts = containmentOptions(inv);
+      if (opts.length) {
+        L.push('Containment options (decision belongs to the analyst, not the tool):');
+        opts.forEach(o => wrapInto(L, `- ${o}`, '  '));
+        L.push('');
+      }
+
+      // ── Module status footer for transparency ─────────────
+      const errs = Object.entries(m).filter(([, v]) => v.status === 'error' || v.status === 'no_key');
+      if (errs.length) {
+        L.push('Module gaps:');
+        errs.forEach(([id, v]) => L.push(`  ${pad(MODULE_DEFS[id]?.name || id, 18)}${v.status === 'no_key' ? 'no API key configured' : (v.summary || 'error')}`));
+      }
+
+      return L.join('\n').trim();
+    }
+
+    function wrapInto(buf, text, indent = '') {
+      const max = 88 - indent.length;
+      const words = String(text).split(/\s+/);
+      let line = '';
+      for (const w of words) {
+        if (line.length + w.length + 1 > max) { buf.push(indent + line); line = w; }
+        else line = line ? `${line} ${w}` : w;
+      }
+      if (line) buf.push(indent + line);
+    }
+
+    function whyThisMatters(inv) {
+      const out = [];
+      const gn = inv.modules.greynoise?.data;
+      const ab = inv.modules.abuseipdb?.data;
+      const ipqs = inv.modules.ipqs?.data;
+      const wk = inv.wellKnown;
+
+      if (wk?.kind === 'private' || wk?.kind === 'loopback' || wk?.kind === 'cgnat') {
+        out.push(`This address is non-routable on the public internet. External reputation feeds carry no signal. Whatever generated this IOC needs to be traced through internal telemetry, not blocked at perimeter.`);
+      }
+      if (wk?.kind === 'platform') {
+        out.push(`Threat-feed hits on a major hosting / SaaS platform almost always reflect user-uploaded abuse content, not a compromise of the platform. Blocking the apex would break legitimate traffic. Pivot to the specific full-path URL or file hash that was actually observed in the event.`);
+      }
+      if (wk?.kind === 'empty') {
+        out.push(`The hash of an empty file is not malware. Most common cause is a broken EDR / SIEM file-capture pipeline emitting hashes for truncated or zero-length files. Investigate the source telemetry, not the hash.`);
+      }
+      if (wk?.kind === 'eicar') {
+        out.push(`EICAR is the standard antivirus test string. If this hash appears in production, an AV functionality test is likely in progress — confirm with the operator before escalating.`);
+      }
+      if (gn?.name && /tor/i.test(gn.name)) {
+        out.push(`Tor exit nodes are shared infrastructure. Activity from this IP may represent one actor or hundreds of unrelated users. Reputation alone is not sufficient justification for action; tie the verdict to event-specific context.`);
+      } else if (gn?.riot) {
+        out.push(`GreyNoise RIOT classification means this IP is associated with a common business service (search engine crawler, monitoring tool, etc). Hits in alerts are typically benign — verify which service before escalating.`);
+      } else if (gn?.classification === 'malicious') {
+        out.push(`GreyNoise has observed this IP scanning the internet with malicious intent. Useful corroborating signal but not definitive on its own — internet-wide scanning behavior is not the same as activity directed at your environment.`);
+      }
+      if (ipqs?.tor) out.push(`IPQS flags Tor. Same caveats as above — shared exit infrastructure, not actor attribution.`);
+      else if (ipqs?.vpn || ipqs?.proxy) out.push(`IPQS flags this as VPN / proxy. Source attribution requires cooperation with the provider; the IP itself is shared by many users.`);
+      if (ab && ab.confidence >= 80 && ab.totalReports >= 100) {
+        out.push(`AbuseIPDB shows sustained, high-volume reporting. The IP has a credible reputation problem, but the categories listed are what others reported — confirm the same activity is what your event actually shows.`);
+      }
+      const vt = inv.modules.virustotal?.data;
+      if (vt?.malicious >= 10) {
+        out.push(`Multi-engine VT consensus is high. When ten or more engines independently flag a sample, false-positive risk is low. Family attribution may still vary across engines.`);
+      } else if (vt && vt.total > 0 && vt.malicious === 0 && (inv.type.startsWith('SHA') || inv.type === 'MD5')) {
+        out.push(`No VT engine flagged this hash. Could be clean, could be too new for signatures, could be tightly targeted. Sandboxing is the next step if event context warrants it.`);
+      }
+      const sh = inv.modules.shodan?.data;
+      if (sh?.cves && sh.cves.length) {
+        out.push(`Shodan reports CVEs on this host. Internet-exposed unpatched services materially raise the credibility of an attack originating from or transiting this IP.`);
+      }
+      return out;
+    }
+
+    function pivotsFor(inv) {
+      const out = [];
+      const t = inv.type;
+      if (t === 'IPv4' || t === 'IPv6') {
+        out.push('Confirm the direction of the original event — inbound (someone hit you) vs outbound (someone in your environment hit them). The pivots diverge sharply from there.');
+        out.push('If inbound: search SIEM for any *successful* authentication / response from this IP across all hosts, last 30d. Failed attempts alone are noise; success changes the case.');
+        out.push('If outbound: identify the source host. Outbound traffic to known-bad infra from a server is anomalous and warrants host-side investigation regardless of feed verdicts.');
+        out.push('Check this IP against any other open or recently closed cases in the last 30d — repeat appearances change priority.');
+        out.push('Pull passive DNS for any domains that resolved to this IP recently — campaign infrastructure often rotates IPs while keeping naming patterns.');
+      } else if (t === 'Domain') {
+        out.push('Pull passive DNS history — recent IP changes, hosting jumps, and parallel subdomains often expose campaign infrastructure.');
+        out.push('Check WHOIS / RDAP registration date. Domains < 30 days old, or ones registered through bulk-registrar / privacy-proxy combinations, deserve closer scrutiny.');
+        out.push('Search SIEM proxy / DNS logs for any internal host that resolved or connected to this domain in the last 30d.');
+        out.push('Check related subdomains and sibling domains under the same registrant — campaigns rarely use a single hostname.');
+        out.push('Capture a screenshot via urlscan.io before the page changes — page content evolves, your forensic snapshot does not.');
+      } else if (t === 'URL') {
+        out.push('Capture a urlscan.io snapshot now — page content, redirects, and payload hosting often change within hours.');
+        out.push('Walk the redirect chain — phishing kits frequently chain through legitimate redirectors before landing on the actual harvest page.');
+        out.push('If a payload is referenced (.exe / .js / .vbs / .lnk / .iso), retrieve the hash and pivot to the hash workflow.');
+        out.push('Search SIEM proxy logs for any internal host that requested this URL or its parent path.');
+        out.push('Check the URL apex against known-good platforms — if the apex is a major SaaS / hosting platform, the URL itself is the IOC, not the domain.');
+      } else if (t === 'MD5' || t === 'SHA1' || t === 'SHA256') {
+        out.push('Search EDR / endpoint telemetry for this hash across the fleet, last 90d — execution count and host distribution define the case.');
+        out.push('If MalwareBazaar / ThreatFox returned a family attribution, pivot to known TTPs for that family in MITRE ATT&CK and check your SIEM for those behaviors regardless of the original hash.');
+        out.push('Pull related samples — same imphash, same YARA family, same C2. A single hash rarely tells the full story.');
+        out.push('If unseen by VT, consider a sandbox detonation (private — public submission can tip off the actor in targeted campaigns).');
+        out.push('Check whether the file was signed and by whom. Revoked / unknown signers materially shift the verdict.');
+      }
+      return out;
+    }
+
+    function containmentOptions(inv) {
+      const t = inv.type;
+      const out = [];
+      if (t === 'IPv4' || t === 'IPv6') {
+        out.push('Single-IP block at perimeter — limited value if the IP is shared infrastructure (Tor, CGNAT, VPN, cloud).');
+        out.push('Threat-feed-based block (e.g. block all Tor exits) — broader coverage but a policy decision; impact on legitimate users varies by org.');
+        out.push('Host-side response on the source if this is outbound (process kill, host isolation, EDR containment).');
+        out.push('SIEM detection rule keyed on this IP plus context (port, protocol, user-agent) — narrower than a hard block.');
+      } else if (t === 'Domain' || t === 'URL') {
+        out.push('DNS sinkhole at the resolver — blocks resolution org-wide without touching the perimeter ACL.');
+        out.push('Web proxy / secure-web-gateway block — same scope, different enforcement point.');
+        out.push('Mail-gateway URL-rewrite / quarantine for the URL pattern — addresses phishing delivery without DNS-level impact.');
+        out.push('SIEM alert on any future request — useful when policy or scope prevents a hard block.');
+      } else if (t === 'MD5' || t === 'SHA1' || t === 'SHA256') {
+        out.push('EDR hash block / quarantine — fleet-wide prevention.');
+        out.push('Threat-feed publication (MISP / OTX / internal TI platform) — extends coverage to peer orgs.');
+        out.push('Targeted hunt for related artifacts (parent process, network connections, dropped files) before remediation, to avoid premature cleanup.');
+      }
+      return out;
+    }
+
     // ────────────────────────────────────────────────────────
     // RISK SCORING
     // ────────────────────────────────────────────────────────
@@ -1778,7 +2153,14 @@
     // (e.g. MalwareBazaar signature match, weight .05) would be drowned by
     // a "not found" zero from a high-weight module — producing a Clean
     // verdict for a confirmed sample.
-    function computeRiskScore(modules) {
+    function computeRiskScore(modules, wellKnown) {
+      // Private / loopback / multicast etc. — public reputation has no signal,
+      // do not produce a misleading numerical score.
+      if (wellKnown && (wellKnown.kind === 'private' || wellKnown.kind === 'loopback' ||
+        wellKnown.kind === 'linklocal' || wellKnown.kind === 'multicast' ||
+        wellKnown.kind === 'reserved' || wellKnown.kind === 'cgnat')) return null;
+
+      const skipFeedFloor = wellKnown && wellKnown.kind === 'platform';
       let totalW = 0, sumW = 0, floor = 0;
       for (const [id, mod] of Object.entries(modules)) {
         const def = MODULE_DEFS[id];
@@ -1787,8 +2169,10 @@
           sumW += def.weight * mod.score;
           totalW += def.weight;
         }
-        // Curated threat-feed positive → floor verdict at Suspicious (50)
-        if ((id === 'malwarebazaar' || id === 'threatfox' || id === 'urlhaus') && mod.score >= 65) {
+        // Curated threat-feed positive → floor verdict at Suspicious (50).
+        // Skipped for major-platform domains where these feeds are reporting
+        // hosted abuse content, not the apex domain.
+        if (!skipFeedFloor && (id === 'malwarebazaar' || id === 'threatfox' || id === 'urlhaus') && mod.score >= 65) {
           floor = Math.max(floor, 55);
         }
         // VT consensus (≥75) → floor verdict at Malicious (75)
@@ -2663,28 +3047,37 @@
     // ────────────────────────────────────────────────────────
     // INVESTIGATION ENGINE
     // ────────────────────────────────────────────────────────
-    async function startInvestigation(rawIoc) {
+    async function startInvestigation(rawIoc, opts = {}) {
       const ioc = refang(rawIoc.trim());
       const type = detectType(ioc);
-      if (!type) { showToast('Could not detect IOC type — check your input', 'error'); return; }
-
-      cancelScan(true);
+      if (!type) {
+        if (opts.prebuiltId) {
+          // Strip the queued stub so it doesn't linger as an unfinishable row
+          state.investigations = state.investigations.filter(i => i.id !== opts.prebuiltId);
+          renderHistory();
+        }
+        showToast('Could not detect IOC type — check your input', 'error');
+        return;
+      }
+      // Bulk passes background=true, but if the user navigated into the
+      // stub before its turn, treat it as foreground so the right pane
+      // actually fills in instead of staying frozen on the skeleton.
+      const background = !!opts.background &&
+        !(state.current && opts.prebuiltId && state.current.id === opts.prebuiltId);
 
       const playbook = PLAYBOOKS[activePlaybook] || PLAYBOOKS.full;
-      const knownHash = lookupWellKnownHash(ioc, type);
+      const wellKnown = lookupWellKnownHash(ioc, type) || lookupWellKnownIP(ioc, type) || lookupWellKnownDomain(ioc, type);
       const inv = {
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        id: opts.prebuiltId || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
         ioc, type,
         timestamp: Date.now(),
         riskScore: null,
         verdict: null,
         modules: {},
-        notes: knownHash
-          ? `> ⚠ **${knownHash.label}**\n> ${knownHash.explainer}\n\n${playbook.notes || ''}`
-          : (playbook.notes || ''),
+        notes: '',
         playbook: playbook.id,
         actions: [],
-        knownHash,
+        wellKnown,
       };
 
       // Module list = type-applicable ∩ playbook-allowed (or all type-applicable for 'full')
@@ -2695,15 +3088,32 @@
       if (!mods.length) { showToast(`Playbook "${playbook.name}" has no applicable modules for ${type}`, 'error'); return; }
       for (const m of mods) inv.modules[m] = { status: 'pending', summary: 'Waiting…', score: null };
 
-      state.current = inv;
-      scanRunning = true;
-      abortController = new AbortController();
-      const signal = abortController.signal;
+      // Per-investigation abort controller — prior scans keep running in the
+      // background and write to history when they finish; right pane swaps to
+      // whichever investigation is currently foreground (state.current).
+      const localAbort = new AbortController();
+      const signal = localAbort.signal;
+      inFlightScans.set(inv.id, localAbort);
 
-      showSkeletons(mods);
-      setScanStatus(true, `Scanning ${mods.length} module${mods.length > 1 ? 's' : ''}…`);
-      document.getElementById('cancel-btn').classList.remove('hidden');
-      resetRightPane();
+      // Foreground scans take over the right pane; background scans (bulk)
+      // run silently and only update history.
+      if (!background) {
+        state.current = inv;
+        scanRunning = true;
+        abortController = localAbort;
+      }
+
+      // Surface the in-flight scan in history immediately so the user can
+      // navigate back to it from the sidebar even while it's still running.
+      state.investigations = state.investigations.filter(i => i.id !== inv.id);
+      state.investigations.unshift(inv);
+
+      if (!background) {
+        showSkeletons(mods);
+        setScanStatus(true, `Scanning ${mods.length} module${mods.length > 1 ? 's' : ''}…`);
+        document.getElementById('cancel-btn').classList.remove('hidden');
+        resetRightPane();
+      }
       renderHistory();
 
       const runners = {
@@ -2723,6 +3133,8 @@
         whois: queryWHOIS,
       };
 
+      const isForeground = () => state.current && state.current.id === inv.id;
+
       const promises = mods.map(async modId => {
         const runner = runners[modId];
         if (!runner) return;
@@ -2731,44 +3143,64 @@
           const result = await runner(ioc, type, signal);
           if (signal.aborted) return;
           Object.assign(inv.modules[modId], result);
-          const s = computeRiskScore(inv.modules);
+          const s = computeRiskScore(inv.modules, inv.wellKnown);
           if (s !== null) {
             inv.riskScore = s;
-            inv.verdict = inv.knownHash ? inv.knownHash.verdict : getVerdict(s)?.label;
-          } else if (inv.knownHash) {
-            inv.verdict = inv.knownHash.verdict;
+            inv.verdict = inv.wellKnown ? inv.wellKnown.verdict : getVerdict(s)?.label;
+          } else if (inv.wellKnown) {
+            inv.verdict = inv.wellKnown.verdict;
           }
-          renderModuleCard(modId, inv.modules[modId]);
-          updateRightPane(inv);
+          if (isForeground()) {
+            renderModuleCard(modId, inv.modules[modId]);
+            updateRightPane(inv);
+          }
         } catch (e) {
           if (signal.aborted) return;
           inv.modules[modId] = { status: 'error', summary: e.message || 'Unknown error', score: null };
-          renderModuleCard(modId, inv.modules[modId]);
+          if (isForeground()) renderModuleCard(modId, inv.modules[modId]);
         }
       });
 
       await Promise.all(promises);
+      inFlightScans.delete(inv.id);
       if (signal.aborted) return;
 
-      scanRunning = false;
-      setScanStatus(false);
-      document.getElementById('cancel-btn').classList.add('hidden');
-
-      const finalScore = computeRiskScore(inv.modules);
+      const finalScore = computeRiskScore(inv.modules, inv.wellKnown);
       inv.riskScore = finalScore;
-      inv.verdict = inv.knownHash
-        ? inv.knownHash.verdict
+      inv.verdict = inv.wellKnown
+        ? inv.wellKnown.verdict
         : (getVerdict(finalScore)?.label || null);
+
+      // Generate the analyst brief once the scan is fully settled. Don't
+      // overwrite if the user already typed in the textarea (only relevant
+      // for foreground scans where the field was editable).
+      const userEdited = isForeground() && document.getElementById('analyst-notes').value.trim() !== '';
+      if (!userEdited) inv.notes = generateAnalystBrief(inv);
 
       state.investigations = state.investigations.filter(i => i.id !== inv.id);
       state.investigations.unshift(inv);
       saveInvestigations();
       renderHistory();
-      updateRightPane(inv);
+      if (isForeground()) {
+        scanRunning = false;
+        setScanStatus(false);
+        document.getElementById('cancel-btn').classList.add('hidden');
+        updateRightPane(inv);
+      } else {
+        // Background completion — give a quiet nudge so the analyst knows the
+        // earlier scan finished and is now in history.
+        showToast(`Background scan complete: ${inv.ioc} (${inv.verdict || 'no verdict'})`, 'success');
+      }
     }
 
     function cancelScan(silent = false) {
-      if (abortController) { abortController.abort(); abortController = null; }
+      // Only cancels the foreground scan. Background scans (other in-flight
+      // investigations) keep running and still write to history.
+      if (state.current && inFlightScans.has(state.current.id)) {
+        inFlightScans.get(state.current.id).abort();
+        inFlightScans.delete(state.current.id);
+      }
+      abortController = null;
       scanRunning = false;
       setScanStatus(false);
       document.getElementById('cancel-btn').classList.add('hidden');
@@ -3250,11 +3682,11 @@
       // The numerical score stays whatever the modules computed (usually
       // low/null).
       const baseVerdict = getVerdict(inv.riskScore);
-      const verdict = inv.knownHash
-        ? { ...TEST_HASH_PALETTE, label: inv.knownHash.verdict }
+      const verdict = inv.wellKnown
+        ? { ...TEST_HASH_PALETTE, label: inv.wellKnown.verdict }
         : baseVerdict;
-      updateRiskGauge(inv.riskScore, verdict, !!inv.knownHash);
-      showTestHashBanner(inv.knownHash || null);
+      updateRiskGauge(inv.riskScore, verdict, !!inv.wellKnown);
+      showTestHashBanner(inv.wellKnown || null);
       renderRiskIndicators(inv);
       renderActionButtons(inv);
       document.getElementById('analyst-notes').value = inv.notes || '';
@@ -3519,21 +3951,27 @@
     <div class="mb-2">
       <div class="px-2 pt-2 pb-1 text-xs font-bold uppercase tracking-widest text-muted">${g}</div>
       ${items.map(inv => {
+        const inFlight = inFlightScans.has(inv.id);
         const baseV = getVerdict(inv.riskScore);
-        const v = inv.knownHash
-          ? { color: '#92400E', label: inv.knownHash.verdict }
+        const v = inv.wellKnown
+          ? { color: '#92400E', label: inv.wellKnown.verdict }
           : baseV;
-        const dot = v ? v.color : '#CBD5E1';
         const active = state.current?.id === inv.id;
         const ts = new Date(inv.timestamp).toTimeString().slice(0, 5);
+        const indicator = inFlight
+          ? `<span class="msym sm spin flex-shrink-0" style="font-size:14px; color:#2563EB;">sync</span>`
+          : `<div class="w-2 h-2 rounded-full flex-shrink-0" style="background:${v ? v.color : '#CBD5E1'};"></div>`;
+        const subLabel = inFlight
+          ? `<span class="text-xs font-semibold" style="color:#2563EB;">Scanning…</span>`
+          : (v ? `<span class="text-xs font-semibold" style="color:${v.color};">${v.label}</span>` : '');
         return `
-          <div class="hist-item flex items-center gap-2 px-2 py-2 ${active ? 'active' : ''}" onclick="loadInvestigation('${inv.id}')">
-            <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:${dot};"></div>
+          <div class="hist-item flex items-center gap-2 px-2 py-2 ${active ? 'active' : ''} ${inFlight ? 'in-flight' : ''}" onclick="loadInvestigation('${inv.id}')">
+            ${indicator}
             <div class="flex-1 min-w-0">
               <div class="font-mono text-xs font-medium text-txt truncate">${esc(inv.ioc)}</div>
               <div class="flex items-center gap-1.5 mt-0.5">
                 <span class="text-xs text-muted">${inv.type || ''}</span>
-                ${v ? `<span class="text-xs font-semibold" style="color:${v.color};">${v.label}</span>` : ''}
+                ${subLabel}
               </div>
             </div>
             <span class="text-xs text-muted flex-shrink-0">${ts}</span>
@@ -3545,7 +3983,14 @@
     function loadInvestigation(id) {
       const inv = state.investigations.find(i => i.id === id);
       if (!inv) return;
-      cancelScan(true);
+      // Don't cancel any in-flight scans — switching the foreground view is
+      // independent of which scans are still running. The scan-status bar /
+      // cancel button reflect whether the *current* selection is mid-scan.
+      const isStillRunning = inFlightScans.has(inv.id);
+      scanRunning = isStillRunning;
+      abortController = isStillRunning ? inFlightScans.get(inv.id) : null;
+      setScanStatus(isStillRunning, isStillRunning ? `Scanning ${inv.ioc}…` : '');
+      document.getElementById('cancel-btn').classList.toggle('hidden', !isStillRunning);
       state.current = inv;
       currentDefanged = false;
 
@@ -3779,7 +4224,10 @@
     // UI — GENERAL
     // ────────────────────────────────────────────────────────
     function newInvestigation() {
-      cancelScan(true);
+      // Don't cancel any in-flight scans — they keep running and write to
+      // history when they complete. Only the foreground UI resets here.
+      abortController = null;
+      scanRunning = false;
       state.current = null;
       currentDefanged = false;
       document.getElementById('ioc-input').value = '';
@@ -4385,23 +4833,45 @@
       const targets = bulkExtracted.filter(i => bulkSelected.has(i.value));
       if (!targets.length) return;
       bulkRunning = true;
-      document.getElementById('bulk-progress-section').classList.remove('hidden');
-      document.getElementById('bulk-run-btn').disabled = true;
+      // Dismiss the modal immediately — scans run in the background and surface
+      // in history as they complete. The .open class drives the CSS transition.
+      closeBulkModal();
+
+      // Seed all targets into history up-front as queued stubs so the user
+      // sees the entire queue with loading glyphs, not just the running one.
+      const queued = targets.map(t => {
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const stub = {
+          id, ioc: t.value, type: t.type,
+          timestamp: Date.now(),
+          riskScore: null, verdict: null,
+          modules: {}, notes: '', actions: [], wellKnown: null,
+        };
+        state.investigations.unshift(stub);
+        // Mark as in-flight so the spinner / pulse styling kicks in. Use a
+        // sentinel AbortController that's never wired to a real fetch — the
+        // start path will replace it with the real one when its turn comes.
+        inFlightScans.set(id, new AbortController());
+        return { ...t, id };
+      });
+      renderHistory();
+
+      showToast(`Queued ${targets.length} IOC${targets.length > 1 ? 's' : ''} for investigation`, 'success');
       let done = 0;
-      for (const t of targets) {
-        if (!bulkRunning) break;
-        document.getElementById('bulk-progress-label').textContent = `Investigating ${t.value}…`;
-        document.getElementById('bulk-progress-count').textContent = `${done}/${targets.length}`;
-        document.getElementById('bulk-progress-fill').style.width = `${(done / targets.length) * 100}%`;
-        try { await startInvestigation(t.value); } catch (e) { console.warn('bulk skip:', t.value, e); }
+      for (const q of queued) {
+        if (!bulkRunning) {
+          // Cancellation mid-queue: clean up remaining stubs + sentinel controllers
+          inFlightScans.delete(q.id);
+          state.investigations = state.investigations.filter(i => i.id !== q.id);
+          continue;
+        }
+        try { await startInvestigation(q.value, { background: true, prebuiltId: q.id }); }
+        catch (e) { console.warn('bulk skip:', q.value, e); inFlightScans.delete(q.id); }
         done++;
       }
-      document.getElementById('bulk-progress-fill').style.width = '100%';
-      document.getElementById('bulk-progress-count').textContent = `${done}/${targets.length}`;
-      document.getElementById('bulk-progress-label').textContent = `Bulk investigation complete`;
+      renderHistory();
       bulkRunning = false;
-      showToast(`Investigated ${done} IOC${done > 1 ? 's' : ''}`, 'success');
-      setTimeout(closeBulkModal, 1200);
+      showToast(`Bulk complete: ${done}/${targets.length} investigated`, 'success');
     }
 
     // ────────────────────────────────────────────────────────
