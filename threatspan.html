@@ -309,42 +309,28 @@
 
     /* ── Tooltip system ────────────────────────────────── */
     .tip { position: relative; }
-    .tip[data-tip]:hover::after,
-    .tip[data-tip]:focus-within::after {
-      content: attr(data-tip);
-      position: absolute;
-      bottom: calc(100% + 8px); left: 50%;
-      transform: translateX(-50%);
-      background:#0F172A; color:#fff;
-      padding:7px 10px; border-radius:6px;
-      font-family:'Inter', sans-serif;
-      font-size:11px; font-weight:500; line-height:1.4;
-      white-space: normal; max-width: 280px; width: max-content;
-      text-align:center;
-      box-shadow:0 4px 14px rgba(0,0,0,.15);
-      z-index: 1000; pointer-events:none;
-      animation: tipFade .15s ease-out both;
+    #ts-tooltip {
+      position: fixed;
+      background: #0F172A; color: #fff;
+      padding: 7px 10px; border-radius: 6px;
+      font-family: 'Inter', sans-serif;
+      font-size: 11px; font-weight: 500; line-height: 1.4;
+      white-space: normal; max-width: 280px;
+      text-align: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,.15);
+      z-index: 9999; pointer-events: none;
+      opacity: 0; transition: opacity .15s ease-out;
     }
-    .tip[data-tip]:hover::before,
-    .tip[data-tip]:focus-within::before {
-      content: '';
-      position: absolute;
-      bottom: calc(100% + 2px); left: 50%;
-      transform: translateX(-50%);
+    #ts-tooltip.visible { opacity: 1; }
+    #ts-tooltip-arrow {
+      position: fixed;
+      width: 0; height: 0;
       border: 5px solid transparent;
-      border-top-color: #0F172A;
-      z-index: 1000; pointer-events:none;
+      z-index: 9999; pointer-events: none;
+      opacity: 0; transition: opacity .15s ease-out;
     }
-    .tip-bottom[data-tip]:hover::after,
-    .tip-bottom[data-tip]:focus-within::after {
-      bottom: auto; top: calc(100% + 8px);
-    }
-    .tip-bottom[data-tip]:hover::before,
-    .tip-bottom[data-tip]:focus-within::before {
-      bottom: auto; top: calc(100% + 2px);
-      border-top-color: transparent; border-bottom-color: #0F172A;
-    }
-    @keyframes tipFade { from { opacity:0; transform:translateX(-50%) translateY(2px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+    #ts-tooltip-arrow.visible { opacity: 1; }
+    @keyframes tipFade { from { opacity:0; } to { opacity:1; } }
 
     /* ── Help drawer ───────────────────────────────────── */
     #help-drawer { transition: transform .28s cubic-bezier(.4,0,.2,1); transform: translateX(100%); }
@@ -366,6 +352,10 @@
 </head>
 
 <body class="flex flex-col" style="height:100vh;">
+
+<!-- Global tooltip -->
+<div id="ts-tooltip"></div>
+<div id="ts-tooltip-arrow"></div>
 
 <!-- Overlay (shared by settings + help drawer) -->
 <div id="overlay" class="fixed inset-0 z-40" style="background:rgba(15,23,42,.25); backdrop-filter:blur(2px);" onclick="closeAllDrawers()"></div>
@@ -613,8 +603,6 @@
       </div>
     </div>
     <button class="btn-icon tip tip-bottom" onclick="openSettings()" data-tip="API keys & preferences"><span class="msym">settings</span></button>
-    <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ml-1"
-         style="background:#0F172A; flex-shrink:0;">L2</div>
   </div>
 </header>
 
@@ -3694,6 +3682,96 @@ async function checkServerStatus() {
 }
 
 // ────────────────────────────────────────────────────────
+// TOOLTIP ENGINE
+// ────────────────────────────────────────────────────────
+(function() {
+  const box   = document.getElementById('ts-tooltip');
+  const arrow = document.getElementById('ts-tooltip-arrow');
+  const PAD   = 8;   // gap between element and tooltip
+  const MARGIN = 6;  // min distance from viewport edge
+
+  let hideTimer = null;
+
+  function show(el) {
+    const tip = el.getAttribute('data-tip');
+    if (!tip) return;
+    clearTimeout(hideTimer);
+
+    const isBottom = el.classList.contains('tip-bottom');
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    box.textContent = tip;
+    box.classList.remove('visible');
+    box.style.visibility = 'hidden';
+    box.style.display = 'block';
+
+    // measure after render
+    requestAnimationFrame(() => {
+      const tw = box.offsetWidth;
+      const th = box.offsetHeight;
+
+      let left = r.left + r.width / 2 - tw / 2;
+      let top;
+      let arrowUp; // arrow points up = tooltip is below element
+
+      if (isBottom) {
+        top = r.bottom + PAD;
+        arrowUp = true;
+        // flip up if not enough room below
+        if (top + th > vh - MARGIN) { top = r.top - PAD - th; arrowUp = false; }
+      } else {
+        top = r.top - PAD - th;
+        arrowUp = false;
+        // flip down if not enough room above
+        if (top < MARGIN) { top = r.bottom + PAD; arrowUp = true; }
+      }
+
+      // clamp horizontally
+      left = Math.max(MARGIN, Math.min(left, vw - tw - MARGIN));
+
+      box.style.left = left + 'px';
+      box.style.top  = top  + 'px';
+      box.style.visibility = '';
+
+      // position arrow
+      const arrowX = Math.max(MARGIN, Math.min(r.left + r.width / 2 - 5, vw - 10 - MARGIN));
+      if (arrowUp) {
+        arrow.style.borderTopColor    = 'transparent';
+        arrow.style.borderBottomColor = '#0F172A';
+        arrow.style.top  = (top - 10) + 'px';
+      } else {
+        arrow.style.borderTopColor    = '#0F172A';
+        arrow.style.borderBottomColor = 'transparent';
+        arrow.style.top  = (top + th) + 'px';
+      }
+      arrow.style.left = arrowX + 'px';
+
+      box.classList.add('visible');
+      arrow.classList.add('visible');
+    });
+  }
+
+  function hide() {
+    hideTimer = setTimeout(() => {
+      box.classList.remove('visible');
+      arrow.classList.remove('visible');
+    }, 80);
+  }
+
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('[data-tip]');
+    if (el) show(el);
+  });
+  document.addEventListener('mouseout', e => {
+    const el = e.target.closest('[data-tip]');
+    if (el) hide();
+  });
+  document.addEventListener('mousedown', hide);
+  document.addEventListener('scroll', hide, true);
+})();
+
 // INIT
 // ────────────────────────────────────────────────────────
 function init() {
