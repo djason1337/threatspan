@@ -12,10 +12,12 @@
  *   node server.js --help          → show help
  */
 
-const http  = require('http');
-const https = require('https');
-const fs    = require('fs');
-const path  = require('path');
+const http   = require('http');
+const https  = require('https');
+const fs     = require('fs');
+const path   = require('path');
+const crypto = require('crypto');
+const os     = require('os');
 const { URL } = require('url');
 const { exec } = require('child_process');
 
@@ -44,7 +46,55 @@ if (args.includes('--version') || args.includes('-v')) {
 const portFlag = args.indexOf('--port');
 const PORT = portFlag !== -1 && args[portFlag + 1] ? parseInt(args[portFlag + 1], 10) : (process.env.PORT || 3000);
 const NO_OPEN = args.includes('--no-open') || process.env.THREATSPAN_NO_OPEN === '1';
-const HTML    = path.join(__dirname, 'threatspan.html');
+const HTML        = path.join(__dirname, 'threatspan.html');
+const KEYS_FILE   = path.join(__dirname, 'keys.json');
+const SECRET_FILE = path.join(os.homedir(), '.threatspan_key');
+
+// ── Encryption (AES-256-GCM) ─────────────────────────────────────────────────
+// Secret key lives in ~/.threatspan_key (outside project, chmod 600).
+// keys.json on its own is useless without it.
+function loadOrCreateSecret() {
+  try {
+    return Buffer.from(fs.readFileSync(SECRET_FILE, 'utf8').trim(), 'hex');
+  } catch {
+    const key = crypto.randomBytes(32);
+    fs.writeFileSync(SECRET_FILE, key.toString('hex') + '\n', { mode: 0o600 });
+    console.log(`  ✦  Encryption key created at ${SECRET_FILE}`);
+    return key;
+  }
+}
+const SECRET = loadOrCreateSecret();
+
+function encryptKeys(obj) {
+  const iv      = crypto.randomBytes(12);
+  const cipher  = crypto.createCipheriv('aes-256-gcm', SECRET, iv);
+  const enc     = Buffer.concat([cipher.update(JSON.stringify(obj), 'utf8'), cipher.final()]);
+  return JSON.stringify({ v:1, iv: iv.toString('hex'), tag: cipher.getAuthTag().toString('hex'), data: enc.toString('hex') });
+}
+
+function decryptKeys(raw) {
+  const { iv, tag, data } = JSON.parse(raw);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', SECRET, Buffer.from(iv, 'hex'));
+  decipher.setAuthTag(Buffer.from(tag, 'hex'));
+  return JSON.parse(Buffer.concat([decipher.update(Buffer.from(data, 'hex')), decipher.final()]).toString('utf8'));
+}
+
+function readKeys() {
+  try {
+    const raw    = fs.readFileSync(KEYS_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed.v) {
+      // Migrate legacy plaintext keys.json → encrypted on next write
+      writeKeys(parsed);
+      return parsed;
+    }
+    return decryptKeys(raw);
+  } catch { return {}; }
+}
+
+function writeKeys(obj) {
+  fs.writeFileSync(KEYS_FILE, encryptKeys(obj), 'utf8');
+}
 
 // Allowlist — only proxy requests to these upstream hosts
 const ALLOWED = new Set([
@@ -122,6 +172,31 @@ const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
   const url = new URL(req.url, `http://localhost:${PORT}`);
+
+  // GET /api/keys — load persisted keys from disk
+  if (url.pathname === '/api/keys' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(readKeys()));
+    return;
+  }
+
+  // POST /api/keys — save keys to disk
+  if (url.pathname === '/api/keys' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const obj = JSON.parse(body);
+        if (typeof obj !== 'object' || Array.isArray(obj)) throw new Error('expected object');
+        writeKeys(obj);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end('{"ok":true}');
+      } catch (e) {
+        res.writeHead(400); res.end(`{"error":"${e.message}"}`);
+      }
+    });
+    return;
+  }
 
   // /api/proxy?url=<encoded-target>
   if (url.pathname === '/api/proxy') {
