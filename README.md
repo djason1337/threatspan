@@ -1,8 +1,10 @@
 # ThreatSpan
 
-One of the biggest problems in security operations is the lack of visibility. Analysts are constantly jumping between tabs — VirusTotal here, Shodan there, AbuseIPDB somewhere else — piecing together a picture that should already be in front of them. ThreatSpan fixes that. Paste an IP, domain, URL, or hash and get enrichment from **14 threat intelligence sources** in one place, all at once.
+I built ThreatSpan because I was tired of juggling tabs during home labs. VirusTotal, AbuseIPDB, Shodan, GreyNoise, URLScan, all of them. Copying the same indicator into each one, stitching results together in my head. It works, but it's slow, and it's how things get missed.
 
-It's a local tool. No cloud backend, no account, no data leaving your machine except to the API providers you configure. The goal is to reduce triage time and make sure analysts actually have the context they need to make a call.
+So I built the workflow I wanted. Paste an IP, domain, URL, or hash and get enrichment **from 14 sources at once.** One screen, one indicator, everything pulled up before you start clicking.
+
+It runs locally. No cloud backend, no account, nothing leaves your machine except the calls to the API providers you configure. The point is faster triage with better context, without giving up control of where your indicators get sent.
 
 ---
 
