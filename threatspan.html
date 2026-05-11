@@ -1028,6 +1028,59 @@
     }
 
     /* ── Adaptive workspace ─────────────────────────────── */
+    :root {
+      --history-pane-width: 264px;
+      --analyst-pane-width: 300px;
+    }
+
+    #history-pane {
+      width: var(--history-pane-width);
+      min-width: 220px;
+      max-width: 420px;
+    }
+
+    #analyst-pane {
+      width: var(--analyst-pane-width);
+      min-width: 260px;
+      max-width: 520px;
+    }
+
+    .pane-resizer {
+      position: relative;
+      z-index: 25;
+      flex: 0 0 9px;
+      width: 9px;
+      margin-left: -4px;
+      margin-right: -4px;
+      cursor: col-resize;
+      touch-action: none;
+      outline: none;
+    }
+
+    .pane-resizer::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 4px;
+      width: 1px;
+      background: #E2E8F0;
+      transition: background .14s ease, width .14s ease, left .14s ease;
+    }
+
+    .pane-resizer:hover::before,
+    .pane-resizer:focus-visible::before,
+    .pane-resizer.dragging::before {
+      left: 3px;
+      width: 3px;
+      background: #2563EB;
+    }
+
+    body.resizing-pane {
+      cursor: col-resize;
+      user-select: none;
+    }
+
     .layout-segment {
       min-width: 0;
       flex: 1;
@@ -1070,6 +1123,21 @@
       box-shadow: 0 1px 3px rgba(15, 23, 42, .04);
     }
 
+    .case-overview-item {
+      min-width: 92px;
+      flex: 0 1 auto;
+    }
+
+    .case-overview-item.wide {
+      min-width: 220px;
+      flex: 1 1 220px;
+    }
+
+    .case-overview-ioc {
+      font-size: 11px;
+      word-break: break-all;
+    }
+
     .case-overview.show {
       display: flex;
     }
@@ -1101,21 +1169,56 @@
       }
 
       html[data-layout="desktop"] #analyst-pane {
-        width: 340px !important;
+        width: var(--analyst-pane-width, 340px) !important;
       }
 
       html[data-layout="desktop"] #history-pane {
-        width: 276px !important;
+        width: var(--history-pane-width, 276px) !important;
+      }
+
+      html[data-layout="desktop"] .case-overview {
+        margin-bottom: 14px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        gap: 16px !important;
+      }
+
+      html[data-layout="desktop"] .case-overview-item {
+        min-width: 112px;
+      }
+
+      html[data-layout="desktop"] .case-overview-item.wide {
+        min-width: 280px;
+        flex-basis: 280px;
+      }
+
+      html[data-layout="desktop"] .case-overview-k {
+        font-size: 10px;
+        margin-bottom: 3px;
+      }
+
+      html[data-layout="desktop"] .case-overview-v {
+        font-size: 14px;
+        line-height: 1.35;
+      }
+
+      html[data-layout="desktop"] .case-overview-ioc {
+        font-size: 12px;
+      }
+
+      html[data-layout="desktop"] .case-overview .pill {
+        font-size: 11px !important;
+        padding: 3px 9px;
       }
     }
 
     @media (min-width: 1600px) {
       html[data-layout="big"] #history-pane {
-        width: 300px !important;
+        width: var(--history-pane-width, 300px) !important;
       }
 
       html[data-layout="big"] #analyst-pane {
-        width: 380px !important;
+        width: var(--analyst-pane-width, 380px) !important;
       }
 
       html[data-layout="big"] #center-content {
@@ -1161,6 +1264,41 @@
       html[data-layout="big"] #bulk-modal {
         width: 860px !important;
         margin-left: -430px !important;
+      }
+
+      html[data-layout="big"] .case-overview {
+        margin-bottom: 16px;
+        padding: 18px 20px;
+        border-radius: 14px;
+        gap: 20px !important;
+      }
+
+      html[data-layout="big"] .case-overview-item {
+        min-width: 132px;
+      }
+
+      html[data-layout="big"] .case-overview-item.wide {
+        min-width: 360px;
+        flex-basis: 360px;
+      }
+
+      html[data-layout="big"] .case-overview-k {
+        font-size: 10.5px;
+        margin-bottom: 4px;
+      }
+
+      html[data-layout="big"] .case-overview-v {
+        font-size: 15px;
+        line-height: 1.4;
+      }
+
+      html[data-layout="big"] .case-overview-ioc {
+        font-size: 13px;
+      }
+
+      html[data-layout="big"] .case-overview .pill {
+        font-size: 12px !important;
+        padding: 4px 10px;
       }
     }
 
@@ -1429,6 +1567,16 @@
 
     html[data-theme="dark"] .case-overview-v {
       color: var(--ts-dark-text);
+    }
+
+    html[data-theme="dark"] .pane-resizer::before {
+      background: var(--ts-dark-border);
+    }
+
+    html[data-theme="dark"] .pane-resizer:hover::before,
+    html[data-theme="dark"] .pane-resizer:focus-visible::before,
+    html[data-theme="dark"] .pane-resizer.dragging::before {
+      background: #7DD3FC;
     }
 
     html[data-theme="dark"] .btn-ghost,
@@ -1956,7 +2104,7 @@
   <main class="flex min-h-0" style="flex:1; overflow:hidden;">
 
     <!-- ─── LEFT PANE ────────────────────────────────────── -->
-    <aside id="history-pane" class="flex-shrink-0 flex flex-col border-r border-border bg-surface" style="width:264px; overflow:hidden;">
+    <aside id="history-pane" class="flex-shrink-0 flex flex-col border-r border-border bg-surface" style="overflow:hidden;">
 
       <div class="flex-shrink-0 px-3 pt-3 pb-2 space-y-2">
         <button class="btn-primary w-full justify-center" style="font-size:12px; padding:8px;"
@@ -1989,6 +2137,8 @@
         </button>
       </div>
     </aside>
+    <div id="history-resizer" class="pane-resizer" role="separator" aria-label="Resize history pane"
+      aria-orientation="vertical" tabindex="0" data-pane="history"></div>
 
     <!-- ─── CENTER PANE ──────────────────────────────────── -->
     <section class="flex flex-col min-w-0" style="flex:1; overflow:hidden; background:#F6F8FA;">
@@ -2079,9 +2229,11 @@
           style="max-width:780px; margin:0 auto; display:none; flex-direction:column; gap:10px;"></div>
       </div>
     </section>
+    <div id="analyst-resizer" class="pane-resizer" role="separator" aria-label="Resize analyst pane"
+      aria-orientation="vertical" tabindex="0" data-pane="analyst"></div>
 
     <!-- ─── RIGHT PANE ───────────────────────────────────── -->
-    <aside id="analyst-pane" class="flex-shrink-0 flex flex-col border-l border-border bg-surface" style="width:300px; overflow:hidden;">
+    <aside id="analyst-pane" class="flex-shrink-0 flex flex-col border-l border-border bg-surface" style="overflow:hidden;">
       <div id="analyst-scroll" class="flex-1 overflow-y-auto">
 
         <!-- Threat Assessment -->
@@ -2377,6 +2529,16 @@
     let themeTransitionTimer = null;
     let layoutResizeTimer = null;
 
+    const PANE_WIDTH_DEFAULTS = {
+      laptop: { history: 264, analyst: 300 },
+      desktop: { history: 276, analyst: 340 },
+      big: { history: 300, analyst: 380 },
+    };
+    const PANE_WIDTH_LIMITS = {
+      history: { min: 220, max: 420 },
+      analyst: { min: 260, max: 520 },
+    };
+
     // ────────────────────────────────────────────────────────
     // STORAGE
     // ────────────────────────────────────────────────────────
@@ -2524,7 +2686,91 @@
       const effective = getEffectiveWorkspaceLayout();
       document.documentElement.dataset.layoutMode = mode;
       document.documentElement.dataset.layout = effective;
+      applyPaneWidths(effective);
       updateLayoutControls(mode, effective);
+    }
+
+    function clampPaneWidth(pane, width, layout = getEffectiveWorkspaceLayout()) {
+      const limits = PANE_WIDTH_LIMITS[pane];
+      const defaults = PANE_WIDTH_DEFAULTS[layout] || PANE_WIDTH_DEFAULTS.laptop;
+      const fallback = defaults[pane];
+      const n = Number.isFinite(width) ? width : fallback;
+      return Math.round(Math.max(limits.min, Math.min(limits.max, n)));
+    }
+
+    function getSavedPaneWidths(layout = getEffectiveWorkspaceLayout()) {
+      const saved = state.prefs.paneWidths?.[layout] || {};
+      const defaults = PANE_WIDTH_DEFAULTS[layout] || PANE_WIDTH_DEFAULTS.laptop;
+      return {
+        history: clampPaneWidth('history', saved.history ?? defaults.history, layout),
+        analyst: clampPaneWidth('analyst', saved.analyst ?? defaults.analyst, layout),
+      };
+    }
+
+    function applyPaneWidths(layout = getEffectiveWorkspaceLayout()) {
+      const widths = fitPaneWidthsToViewport(getSavedPaneWidths(layout));
+      document.documentElement.style.setProperty('--history-pane-width', `${widths.history}px`);
+      document.documentElement.style.setProperty('--analyst-pane-width', `${widths.analyst}px`);
+      updatePaneHandleValues(widths);
+    }
+
+    function fitPaneWidthsToViewport(widths) {
+      const main = document.querySelector('main');
+      const mainWidth = main ? main.getBoundingClientRect().width : window.innerWidth;
+      const centerMin = 560;
+      const handles = 18;
+      let history = widths.history;
+      let analyst = widths.analyst;
+      let overflow = history + analyst + centerMin + handles - mainWidth;
+      if (overflow > 0) {
+        const analystRoom = Math.max(0, analyst - PANE_WIDTH_LIMITS.analyst.min);
+        const analystCut = Math.min(overflow, analystRoom);
+        analyst -= analystCut;
+        overflow -= analystCut;
+      }
+      if (overflow > 0) {
+        const historyRoom = Math.max(0, history - PANE_WIDTH_LIMITS.history.min);
+        const historyCut = Math.min(overflow, historyRoom);
+        history -= historyCut;
+      }
+      return {
+        history: clampPaneWidth('history', history),
+        analyst: clampPaneWidth('analyst', analyst),
+      };
+    }
+
+    function updatePaneHandleValues(widths = getSavedPaneWidths()) {
+      const history = document.getElementById('history-resizer');
+      const analyst = document.getElementById('analyst-resizer');
+      if (history) {
+        history.setAttribute('aria-valuemin', String(PANE_WIDTH_LIMITS.history.min));
+        history.setAttribute('aria-valuemax', String(PANE_WIDTH_LIMITS.history.max));
+        history.setAttribute('aria-valuenow', String(widths.history));
+      }
+      if (analyst) {
+        analyst.setAttribute('aria-valuemin', String(PANE_WIDTH_LIMITS.analyst.min));
+        analyst.setAttribute('aria-valuemax', String(PANE_WIDTH_LIMITS.analyst.max));
+        analyst.setAttribute('aria-valuenow', String(widths.analyst));
+      }
+    }
+
+    function savePaneWidth(pane, width) {
+      const layout = getEffectiveWorkspaceLayout();
+      const current = getSavedPaneWidths(layout);
+      current[pane] = clampPaneWidth(pane, width, layout);
+      state.prefs.paneWidths = state.prefs.paneWidths || {};
+      state.prefs.paneWidths[layout] = current;
+      savePrefsData();
+      applyPaneWidths(layout);
+    }
+
+    function getDynamicPaneMax(pane, otherWidth) {
+      const main = document.querySelector('main');
+      const mainWidth = main ? main.getBoundingClientRect().width : window.innerWidth;
+      const centerMin = 560;
+      const handles = 18;
+      const hardMax = PANE_WIDTH_LIMITS[pane].max;
+      return Math.max(PANE_WIDTH_LIMITS[pane].min, Math.min(hardMax, mainWidth - otherWidth - centerMin - handles));
     }
 
     function updateLayoutControls(mode = getWorkspaceLayoutMode(), effective = getEffectiveWorkspaceLayout()) {
@@ -2546,6 +2792,59 @@
       savePrefsData();
       applyWorkspaceLayout();
       showToast(`Layout: ${mode === 'auto' ? 'Auto' : mode === 'big' ? 'Big Picture' : mode[0].toUpperCase() + mode.slice(1)}`);
+    }
+
+    function initResizablePanes() {
+      const handles = document.querySelectorAll('.pane-resizer[data-pane]');
+      handles.forEach(handle => {
+        const pane = handle.dataset.pane;
+        handle.addEventListener('pointerdown', e => {
+          if (e.button != null && e.button !== 0) return;
+          e.preventDefault();
+          const startX = e.clientX;
+          const startWidths = getSavedPaneWidths();
+          const otherWidth = pane === 'history' ? startWidths.analyst : startWidths.history;
+          const min = PANE_WIDTH_LIMITS[pane].min;
+          const max = getDynamicPaneMax(pane, otherWidth);
+          handle.classList.add('dragging');
+          document.body.classList.add('resizing-pane');
+          handle.setPointerCapture?.(e.pointerId);
+
+          const move = ev => {
+            const delta = pane === 'history' ? ev.clientX - startX : startX - ev.clientX;
+            const next = Math.max(min, Math.min(max, startWidths[pane] + delta));
+            document.documentElement.style.setProperty(`--${pane}-pane-width`, `${Math.round(next)}px`);
+            updatePaneHandleValues({ ...startWidths, [pane]: Math.round(next) });
+          };
+          const up = ev => {
+            handle.classList.remove('dragging');
+            document.body.classList.remove('resizing-pane');
+            handle.releasePointerCapture?.(ev.pointerId);
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', up);
+            const cssVal = getComputedStyle(document.documentElement).getPropertyValue(`--${pane}-pane-width`);
+            savePaneWidth(pane, parseFloat(cssVal));
+          };
+          window.addEventListener('pointermove', move);
+          window.addEventListener('pointerup', up, { once: true });
+        });
+
+        handle.addEventListener('keydown', e => {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+          e.preventDefault();
+          const widths = getSavedPaneWidths();
+          const otherWidth = pane === 'history' ? widths.analyst : widths.history;
+          const min = PANE_WIDTH_LIMITS[pane].min;
+          const max = getDynamicPaneMax(pane, otherWidth);
+          const step = e.shiftKey ? 24 : 12;
+          let next = widths[pane];
+          if (e.key === 'Home') next = min;
+          else if (e.key === 'End') next = max;
+          else if (pane === 'history') next += e.key === 'ArrowRight' ? step : -step;
+          else next += e.key === 'ArrowLeft' ? step : -step;
+          savePaneWidth(pane, Math.max(min, Math.min(max, next)));
+        });
+      });
     }
 
     // ────────────────────────────────────────────────────────
@@ -4576,7 +4875,7 @@
       const verdictBg = verdict?.bg || '#F1F5F9';
       const verdictColor = verdict?.color || '#94A3B8';
       const items = [
-        ['IOC', `<span class="font-mono" style="font-size:11px;word-break:break-all;">${esc(inv.ioc || '—')}</span>`],
+        ['IOC', `<span class="font-mono case-overview-ioc">${esc(inv.ioc || '—')}</span>`],
         ['Type', esc(inv.type || '—')],
         ['Score', `<span class="pill" style="background:${verdictBg};color:${verdictColor};font-size:10px;">${score} · ${esc(verdictLabel)}</span>`],
         ['ASN / Org', `${esc(String(asn))} <span class="text-muted font-medium">${esc(String(org))}</span>`],
@@ -4584,7 +4883,7 @@
         ['Age', esc(safeAge)],
       ];
       el.innerHTML = items.map(([k, v]) => `
-        <div style="min-width:${k === 'IOC' ? '220px' : '92px'}; flex:${k === 'IOC' || k === 'ASN / Org' ? '1 1 220px' : '0 1 auto'};">
+        <div class="case-overview-item${k === 'IOC' || k === 'ASN / Org' ? ' wide' : ''}">
           <span class="case-overview-k">${k}</span>
           <div class="case-overview-v">${v}</div>
         </div>
@@ -6429,12 +6728,13 @@
     // ────────────────────────────────────────────────────────
     function init() {
       loadState();
+      initResizablePanes();
       window.addEventListener('resize', () => {
-        if (getWorkspaceLayoutMode() !== 'auto') return;
         if (layoutResizeTimer) clearTimeout(layoutResizeTimer);
         layoutResizeTimer = setTimeout(() => {
           layoutResizeTimer = null;
-          applyWorkspaceLayout();
+          if (getWorkspaceLayoutMode() === 'auto') applyWorkspaceLayout();
+          else applyPaneWidths();
         }, 120);
       });
       renderHistory();
