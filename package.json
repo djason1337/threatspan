@@ -1,6 +1,6 @@
 {
   "name": "threatspan",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "A fast, keyboard-first investigation workspace for SOC analysts. Enriches IPs / domains / URLs / hashes with VirusTotal, AbuseIPDB, IPQS, Shodan, GreyNoise, URLhaus, ThreatFox, MalwareBazaar, OTX, Sucuri, urlscan.io, GeoIP, DNS, WHOIS — plus CISA KEV cross-reference and MITRE ATT&CK enrichment.",
   "keywords": [
     "soc",
