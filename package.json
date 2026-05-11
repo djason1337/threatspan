@@ -35,13 +35,15 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node -e \"console.log('No tests yet — run: npm start')\""
+    "test": "node -e \"console.log('No tests yet — run: npm start')\"",
+    "build:binaries": "bash scripts/build-binaries.sh"
   },
   "files": [
     "server.js",
     "threatspan.html",
     "threatspan",
     "ThreatSpan.command",
+    "ThreatSpan.cmd",
     "examples/",
     "README.md",
     "LICENSE"
@@ -49,5 +51,20 @@
   "engines": {
     "node": ">=14"
   },
-  "preferGlobal": true
+  "preferGlobal": true,
+  "pkg": {
+    "scripts": "server.js",
+    "assets": [
+      "threatspan.html",
+      "package.json"
+    ],
+    "targets": [
+      "node18-macos-x64",
+      "node18-macos-arm64",
+      "node18-linux-x64",
+      "node18-linux-arm64",
+      "node18-win-x64"
+    ],
+    "outputPath": "dist/binaries"
+  }
 }

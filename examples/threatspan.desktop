@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ThreatSpan
+GenericName=Threat Investigation Workspace
+Comment=Keyboard-first SOC investigation workspace for IOCs
+Exec=threatspan
+Terminal=true
+Icon=utilities-terminal
+Categories=Network;Security;Utility;
+Keywords=security;soc;ioc;virustotal;threat;intel;
+StartupNotify=false

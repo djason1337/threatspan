@@ -3,3 +3,4 @@ node_modules/
 *.log
 .threatspan_key
 test_iocs.md
+dist/binaries/

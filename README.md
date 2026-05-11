@@ -10,26 +10,63 @@ It runs locally. No cloud backend, no account, nothing leaves your machine excep
 
 ## Install / Run
 
-All options require **[Node.js](https://nodejs.org) v14+**. No `npm install` needed — ThreatSpan has zero dependencies.
+Most options need **[Node.js](https://nodejs.org) v14+** (zero dependencies, no `npm install`). The single-file binaries do not.
 
-### 1. `npx` — no install (easiest)
+### 1. Homebrew (macOS / Linux)
+
+```bash
+brew install djason1337/tap/threatspan
+threatspan
+```
+
+### 2. `npx` — no install (easiest)
 
 ```bash
 npx threatspan
 ```
 
-Browser opens automatically.
-
-### 2. `npm install -g`
+### 3. `npm install -g`
 
 ```bash
 npm install -g threatspan
 threatspan
 ```
 
-`threatspan` is now on your PATH from anywhere.
+### 4. Single-file binary — no Node required
 
-### 3. Clone & run (Linux / macOS)
+Grab the right binary for your platform from the [latest release](https://github.com/djason1337/threatspan/releases/latest):
+
+| Platform | Binary |
+|----------|--------|
+| macOS (Apple Silicon) | `threatspan-macos-arm64` |
+| macOS (Intel) | `threatspan-macos-x64` |
+| Linux x64 | `threatspan-linux-x64` |
+| Linux arm64 | `threatspan-linux-arm64` |
+| Windows x64 | `threatspan-win-x64.exe` |
+
+Verify the download (recommended):
+
+```bash
+shasum -a 256 -c SHA256SUMS.txt --ignore-missing
+```
+
+Then run:
+
+```bash
+chmod +x threatspan-macos-arm64
+./threatspan-macos-arm64
+```
+
+> **macOS Gatekeeper.** The binary and `.command` launcher are not signed with an Apple Developer ID. macOS will block them on first run with *"cannot be opened because it is from an unidentified developer."* Two ways past it:
+>
+> ```bash
+> # one-liner: strip the quarantine flag
+> xattr -d com.apple.quarantine ./threatspan-macos-arm64
+> ```
+>
+> …or in Finder: **right-click the file → Open → Open**. macOS remembers the choice. You only do this once per download.
+
+### 5. Clone & run (Linux / macOS)
 
 ```bash
 git clone https://github.com/djason1337/threatspan.git
@@ -37,13 +74,27 @@ cd threatspan
 ./threatspan
 ```
 
-### 4. Double-click on macOS (no terminal)
+### 6. Double-click launcher
 
-After cloning, **double-click `ThreatSpan.command`** in Finder. Terminal opens, the server starts, browser opens. Close the Terminal window to stop.
+- **macOS:** double-click `ThreatSpan.command` in Finder.
+- **Windows:** double-click `ThreatSpan.cmd` in Explorer.
 
-> *First time only:* macOS may say "cannot be opened because it is from an unidentified developer." Right-click → **Open** → **Open** to bypass Gatekeeper once.
+Both open a terminal, start the server, and open your browser. Close the window to stop.
 
-### 5. Auto-start at login (macOS)
+(macOS first run: see Gatekeeper note above.)
+
+### 7. Linux desktop entry
+
+To get a launcher in your applications menu:
+
+```bash
+sudo cp examples/threatspan.desktop /usr/share/applications/
+# or per-user:
+mkdir -p ~/.local/share/applications
+cp examples/threatspan.desktop ~/.local/share/applications/
+```
+
+### 8. Auto-start at login (macOS)
 
 ```bash
 # Edit examples/com.threatspan.plist — replace /PATH/TO/threatspan
