@@ -30,30 +30,68 @@ const dns    = require('dns').promises;
 const { URL } = require('url');
 const { exec } = require('child_process');
 
+// ── Logger ───────────────────────────────────────────────────────────────────
+// THREATSPAN_LOG sets the level: debug, info (default), warn, error, silent.
+const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3, silent: 4 };
+const LOG_LEVEL  = LOG_LEVELS[(process.env.THREATSPAN_LOG || 'info').toLowerCase()] ?? LOG_LEVELS.info;
+function _emit(name, stream, label, msg, meta) {
+  if (LOG_LEVELS[name] < LOG_LEVEL) return;
+  const ts = new Date().toISOString();
+  let line = `${ts} ${label} ${msg}`;
+  if (meta && typeof meta === 'object' && Object.keys(meta).length) line += ' ' + JSON.stringify(meta);
+  stream.write(line + '\n');
+}
+const log = {
+  debug: (msg, meta) => _emit('debug', process.stderr, 'DEBUG', msg, meta),
+  info:  (msg, meta) => _emit('info',  process.stdout, 'INFO ', msg, meta),
+  warn:  (msg, meta) => _emit('warn',  process.stderr, 'WARN ', msg, meta),
+  error: (msg, meta) => _emit('error', process.stderr, 'ERROR', msg, meta),
+};
+
 // ── CLI args ─────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
+const VERSION = (() => { try { return require('./package.json').version; } catch { return '1.0.0'; } })();
+
+// Subcommands (early dispatch — installLaunchd/uninstallLaunchd are hoisted).
+if (args[0] === 'install-launchd')   { installLaunchd(parsePortArg(args, 3000)); }
+if (args[0] === 'uninstall-launchd') { uninstallLaunchd(); }
+
 if (args.includes('--help') || args.includes('-h')) {
   console.log(`
   ThreatSpan — SOC investigation workspace
 
   Usage:
     threatspan [options]
+    threatspan install-launchd [--port <n>]   macOS: install LaunchAgent (auto-start at login)
+    threatspan uninstall-launchd              macOS: stop and remove LaunchAgent
 
   Options:
     --port <n>     Port to listen on (default: 3000, env PORT)
     --no-open      Don't automatically open the browser
     --version, -v  Show version
     --help, -h     Show this help
+
+  Environment:
+    PORT                          Same as --port
+    THREATSPAN_NO_OPEN=1          Don't auto-open browser
+    THREATSPAN_NO_UPDATE_CHECK=1  Disable weekly update check
+    THREATSPAN_LOG=<level>        debug | info (default) | warn | error | silent
 `);
   process.exit(0);
 }
 if (args.includes('--version') || args.includes('-v')) {
-  try { console.log(require('./package.json').version); } catch { console.log('1.0.0'); }
+  console.log(VERSION);
   process.exit(0);
 }
 
-const portFlag = args.indexOf('--port');
-const PORT = portFlag !== -1 && args[portFlag + 1] ? parseInt(args[portFlag + 1], 10) : (process.env.PORT || 3000);
+function parsePortArg(argv, fallback) {
+  const i = argv.indexOf('--port');
+  if (i !== -1 && argv[i + 1]) return parseInt(argv[i + 1], 10);
+  if (process.env.PORT) return parseInt(process.env.PORT, 10);
+  return fallback;
+}
+
+const PORT    = parsePortArg(args, 3000);
 const NO_OPEN = args.includes('--no-open') || process.env.THREATSPAN_NO_OPEN === '1';
 
 // ── State directory ──────────────────────────────────────────────────────────

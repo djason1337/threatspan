@@ -14,6 +14,19 @@
     href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
     rel="stylesheet">
   <script>
+    (function () {
+      try {
+        const prefs = JSON.parse(localStorage.getItem('threatspan_prefs') || '{}');
+        if (prefs.darkMode) document.documentElement.dataset.theme = 'dark';
+        const savedMode = prefs.workspaceLayout || 'auto';
+        const mode = ['auto', 'laptop', 'desktop', 'big'].includes(savedMode) ? savedMode : 'auto';
+        const auto = window.innerWidth >= 1800 ? 'big' : window.innerWidth >= 1500 ? 'desktop' : 'laptop';
+        document.documentElement.dataset.layoutMode = mode;
+        document.documentElement.dataset.layout = mode === 'auto' ? auto : mode;
+      } catch { /* keep default light theme */ }
+    })();
+  </script>
+  <script>
     tailwind.config = {
       theme: {
         extend: {
@@ -1013,6 +1026,559 @@
       color: #475569;
       box-shadow: 0 1px 0 #CBD5E1;
     }
+
+    /* ── Adaptive workspace ─────────────────────────────── */
+    .layout-segment {
+      min-width: 0;
+      flex: 1;
+      border: 1px solid #E2E8F0;
+      background: #fff;
+      color: #64748B;
+      border-radius: 8px;
+      padding: 7px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: background .14s ease, color .14s ease, border-color .14s ease;
+      white-space: nowrap;
+    }
+
+    .layout-segment:hover {
+      background: #F8FAFC;
+      color: #1E293B;
+      border-color: #CBD5E1;
+    }
+
+    .layout-segment.active {
+      background: #0F172A;
+      color: #fff;
+      border-color: #0F172A;
+    }
+
+    .case-overview {
+      display: none;
+      max-width: 780px;
+      margin: 0 auto 10px auto;
+      border: 1px solid #E2E8F0;
+      background: rgba(255, 255, 255, .88);
+      border-radius: 10px;
+      padding: 10px 12px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, .04);
+    }
+
+    .case-overview.show {
+      display: flex;
+    }
+
+    .case-overview-k {
+      display: block;
+      color: #94A3B8;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: .55px;
+      text-transform: uppercase;
+      margin-bottom: 1px;
+    }
+
+    .case-overview-v {
+      color: #1E293B;
+      font-size: 12px;
+      font-weight: 700;
+      min-width: 0;
+    }
+
+    @media (min-width: 1200px) {
+      html[data-layout="desktop"] #command-wrap,
+      html[data-layout="desktop"] #empty-state,
+      html[data-layout="desktop"] #module-cards,
+      html[data-layout="desktop"] .case-overview,
+      html[data-layout="desktop"] #diff-panel {
+        max-width: 1080px !important;
+      }
+
+      html[data-layout="desktop"] #analyst-pane {
+        width: 340px !important;
+      }
+
+      html[data-layout="desktop"] #history-pane {
+        width: 276px !important;
+      }
+    }
+
+    @media (min-width: 1600px) {
+      html[data-layout="big"] #history-pane {
+        width: 300px !important;
+      }
+
+      html[data-layout="big"] #analyst-pane {
+        width: 380px !important;
+      }
+
+      html[data-layout="big"] #center-content {
+        padding-left: 24px !important;
+        padding-right: 24px !important;
+      }
+
+      html[data-layout="big"] #command-wrap,
+      html[data-layout="big"] #empty-state,
+      html[data-layout="big"] #module-cards,
+      html[data-layout="big"] .case-overview,
+      html[data-layout="big"] #diff-panel {
+        max-width: 1520px !important;
+      }
+
+      html[data-layout="big"] #module-cards {
+        flex-direction: row !important;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 12px !important;
+      }
+
+      html[data-layout="big"] #module-cards>.mod-card {
+        flex: 1 1 calc(50% - 6px);
+        min-width: 460px;
+      }
+
+      html[data-layout="big"] #analyst-notes {
+        min-height: 280px;
+      }
+
+      html[data-layout="big"] #action-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+      }
+
+      html[data-layout="big"] #action-buttons .action-btn {
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+
+      html[data-layout="big"] #bulk-modal {
+        width: 860px !important;
+        margin-left: -430px !important;
+      }
+    }
+
+    /* ── Dark theme ─────────────────────────────────────── */
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --ts-dark-bg: #0B1120;
+      --ts-dark-canvas: #0D1526;
+      --ts-dark-surface: #111827;
+      --ts-dark-surface-low: #0F172A;
+      --ts-dark-surface-high: #1E293B;
+      --ts-dark-border: #273449;
+      --ts-dark-text: #E2E8F0;
+      --ts-dark-muted: #94A3B8;
+      --ts-dark-accent: #7DD3FC;
+    }
+
+    html[data-theme="dark"] body {
+      background: var(--ts-dark-bg);
+      color: var(--ts-dark-text);
+    }
+
+    html.theme-transitioning *,
+    html.theme-transitioning *::before,
+    html.theme-transitioning *::after {
+      transition: none !important;
+      animation-duration: 0s !important;
+      animation-delay: 0s !important;
+    }
+
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation-duration: .18s;
+      animation-timing-function: cubic-bezier(.4, 0, .2, 1);
+      animation-delay: 0s;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      ::view-transition-old(root),
+      ::view-transition-new(root) {
+        animation-duration: 1ms;
+      }
+    }
+
+    html[data-theme="dark"] body,
+    html[data-theme="dark"] header,
+    html[data-theme="dark"] aside,
+    html[data-theme="dark"] section,
+    html[data-theme="dark"] input,
+    html[data-theme="dark"] textarea,
+    html[data-theme="dark"] button,
+    html[data-theme="dark"] .mod-card,
+    html[data-theme="dark"] .pb-chip,
+    html[data-theme="dark"] .export-menu,
+    html[data-theme="dark"] #help-drawer,
+    html[data-theme="dark"] #settings-drawer,
+    html[data-theme="dark"] #bulk-modal,
+    html[data-theme="dark"] #import-modal {
+      transition: background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+
+    html[data-theme="dark"] .bg-surface,
+    html[data-theme="dark"] header,
+    html[data-theme="dark"] aside,
+    html[data-theme="dark"] #help-drawer,
+    html[data-theme="dark"] #settings-drawer,
+    html[data-theme="dark"] #bulk-modal,
+    html[data-theme="dark"] #import-modal,
+    html[data-theme="dark"] [style*="background:#fff"],
+    html[data-theme="dark"] [style*="background: #fff"],
+    html[data-theme="dark"] [style*="background:#FFFFFF"],
+    html[data-theme="dark"] [style*="background: #FFFFFF"] {
+      background: var(--ts-dark-surface) !important;
+    }
+
+    html[data-theme="dark"] main,
+    html[data-theme="dark"] main>section,
+    html[data-theme="dark"] #center-content,
+    html[data-theme="dark"] [style*="background:#F6F8FA"],
+    html[data-theme="dark"] [style*="background: #F6F8FA"] {
+      background: var(--ts-dark-canvas) !important;
+      box-shadow: inset 0 88px 140px rgba(125, 211, 252, .045);
+    }
+
+    html[data-theme="dark"] .bg-surf-low,
+    html[data-theme="dark"] [style*="background:#F8FAFC"],
+    html[data-theme="dark"] [style*="background: #F8FAFC"] {
+      background: var(--ts-dark-surface-low) !important;
+    }
+
+    html[data-theme="dark"] .bg-surf-high,
+    html[data-theme="dark"] [style*="background:#EEF2F7"],
+    html[data-theme="dark"] [style*="background: #EEF2F7"],
+    html[data-theme="dark"] [style*="background:#F1F5F9"],
+    html[data-theme="dark"] [style*="background: #F1F5F9"] {
+      background: var(--ts-dark-surface-high) !important;
+    }
+
+    html[data-theme="dark"] [style*="background:#EFF6FF"],
+    html[data-theme="dark"] [style*="background: #EFF6FF"] {
+      background: rgba(37, 99, 235, .16) !important;
+    }
+
+    html[data-theme="dark"] [style*="background:#F0FDF4"],
+    html[data-theme="dark"] [style*="background: #F0FDF4"] {
+      background: rgba(5, 150, 105, .18) !important;
+    }
+
+    html[data-theme="dark"] [style*="background:#FEF2F2"],
+    html[data-theme="dark"] [style*="background: #FEF2F2"] {
+      background: rgba(220, 38, 38, .16) !important;
+    }
+
+    html[data-theme="dark"] [style*="background:#FFFBEB"],
+    html[data-theme="dark"] [style*="background: #FFFBEB"],
+    html[data-theme="dark"] [style*="background:#FEF3C7"],
+    html[data-theme="dark"] [style*="background: #FEF3C7"],
+    html[data-theme="dark"] [style*="background:#FDE68A"],
+    html[data-theme="dark"] [style*="background: #FDE68A"] {
+      background: rgba(217, 119, 6, .18) !important;
+    }
+
+    html[data-theme="dark"] .text-primary,
+    html[data-theme="dark"] .text-txt,
+    html[data-theme="dark"] [style*="color:#0F172A"],
+    html[data-theme="dark"] [style*="color: #0F172A"],
+    html[data-theme="dark"] [style*="color:#1E293B"],
+    html[data-theme="dark"] [style*="color: #1E293B"] {
+      color: #F8FAFC !important;
+    }
+
+    html[data-theme="dark"] .text-muted,
+    html[data-theme="dark"] [style*="color:#64748B"],
+    html[data-theme="dark"] [style*="color: #64748B"],
+    html[data-theme="dark"] [style*="color:#475569"],
+    html[data-theme="dark"] [style*="color: #475569"],
+    html[data-theme="dark"] [style*="color:#94A3B8"],
+    html[data-theme="dark"] [style*="color: #94A3B8"] {
+      color: var(--ts-dark-muted) !important;
+    }
+
+    html[data-theme="dark"] [style*="color:#2563EB"],
+    html[data-theme="dark"] [style*="color: #2563EB"],
+    html[data-theme="dark"] .text-info {
+      color: #7DD3FC !important;
+    }
+
+    html[data-theme="dark"] [style*="color:#DC2626"],
+    html[data-theme="dark"] [style*="color: #DC2626"],
+    html[data-theme="dark"] .text-critical {
+      color: #F87171 !important;
+    }
+
+    html[data-theme="dark"] [style*="color:#059669"],
+    html[data-theme="dark"] [style*="color: #059669"],
+    html[data-theme="dark"] .text-safe {
+      color: #34D399 !important;
+    }
+
+    html[data-theme="dark"] [style*="color:#92400E"],
+    html[data-theme="dark"] [style*="color: #92400E"],
+    html[data-theme="dark"] [style*="color:#78350F"],
+    html[data-theme="dark"] [style*="color: #78350F"],
+    html[data-theme="dark"] [style*="color:#B45309"],
+    html[data-theme="dark"] [style*="color: #B45309"],
+    html[data-theme="dark"] [style*="color:#D97706"],
+    html[data-theme="dark"] [style*="color: #D97706"],
+    html[data-theme="dark"] .text-warning {
+      color: #FBBF24 !important;
+    }
+
+    html[data-theme="dark"] .border-border,
+    html[data-theme="dark"] [style*="border:1px solid #E2E8F0"],
+    html[data-theme="dark"] [style*="border: 1px solid #E2E8F0"],
+    html[data-theme="dark"] [style*="border-left:1px solid #E2E8F0"],
+    html[data-theme="dark"] [style*="border-left: 1px solid #E2E8F0"],
+    html[data-theme="dark"] [style*="border-bottom:1px solid #E2E8F0"],
+    html[data-theme="dark"] [style*="border-bottom: 1px solid #E2E8F0"],
+    html[data-theme="dark"] [style*="border-top:1px solid #E2E8F0"],
+    html[data-theme="dark"] [style*="border-top: 1px solid #E2E8F0"] {
+      border-color: var(--ts-dark-border) !important;
+    }
+
+    html[data-theme="dark"] [style*="border-bottom:1px solid #FDE68A"],
+    html[data-theme="dark"] [style*="border-bottom: 1px solid #FDE68A"],
+    html[data-theme="dark"] [style*="border-color:#FDE68A"],
+    html[data-theme="dark"] [style*="border-color: #FDE68A"] {
+      border-color: rgba(251, 191, 36, .36) !important;
+    }
+
+    html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+
+    html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    html[data-theme="dark"] .mod-card {
+      background: rgba(17, 24, 39, .96);
+      border-color: var(--ts-dark-border);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .32);
+    }
+
+    html[data-theme="dark"] .mod-card:hover {
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .30);
+    }
+
+    html[data-theme="dark"] .hist-item:hover,
+    html[data-theme="dark"] .btn-icon:hover,
+    html[data-theme="dark"] .btn-ghost:hover,
+    html[data-theme="dark"] .pb-chip:hover,
+    html[data-theme="dark"] .export-menu button:hover,
+    html[data-theme="dark"] .help-row:hover,
+    html[data-theme="dark"] .bulk-ioc-row:hover {
+      background: #1E293B;
+      color: var(--ts-dark-text);
+    }
+
+    html[data-theme="dark"] .hist-item.active,
+    html[data-theme="dark"] .bulk-ioc-row.checked {
+      background: #172033;
+    }
+
+    html[data-theme="dark"] .hist-item.in-flight {
+      background: linear-gradient(90deg, #10203B 0%, #0F172A 60%);
+    }
+
+    html[data-theme="dark"] .btn-primary {
+      background: #E2E8F0;
+      border-color: #E2E8F0;
+      color: #0F172A;
+    }
+
+    html[data-theme="dark"] .btn-primary:hover {
+      background: #F8FAFC;
+    }
+
+    html[data-theme="dark"] .layout-segment {
+      background: rgba(15, 23, 42, .88);
+      border-color: var(--ts-dark-border);
+      color: #B6C3D1;
+    }
+
+    html[data-theme="dark"] .layout-segment:hover {
+      background: #1E293B;
+      border-color: #334155;
+      color: var(--ts-dark-text);
+    }
+
+    html[data-theme="dark"] .layout-segment.active {
+      background: rgba(125, 211, 252, .18);
+      border-color: rgba(125, 211, 252, .48);
+      color: #E0F2FE;
+    }
+
+    html[data-theme="dark"] .case-overview {
+      background: rgba(17, 24, 39, .90);
+      border-color: var(--ts-dark-border);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, .20);
+    }
+
+    html[data-theme="dark"] .case-overview-k {
+      color: #64748B;
+    }
+
+    html[data-theme="dark"] .case-overview-v {
+      color: var(--ts-dark-text);
+    }
+
+    html[data-theme="dark"] .btn-ghost,
+    html[data-theme="dark"] .btn-icon,
+    html[data-theme="dark"] .pb-chip,
+    html[data-theme="dark"] .export-menu {
+      border-color: var(--ts-dark-border);
+      color: #B6C3D1;
+    }
+
+    html[data-theme="dark"] .pb-chip {
+      background: rgba(15, 23, 42, .88);
+      border-color: var(--ts-dark-border);
+      color: #B6C3D1;
+    }
+
+    html[data-theme="dark"] .pb-chip:hover {
+      background: #1E293B;
+      border-color: #334155;
+      color: var(--ts-dark-text);
+    }
+
+    html[data-theme="dark"] .pb-chip.active {
+      background: rgba(125, 211, 252, .18);
+      border-color: rgba(125, 211, 252, .48);
+      color: #E0F2FE;
+    }
+
+    html[data-theme="dark"] .pb-chip.active:hover {
+      background: rgba(125, 211, 252, .24);
+      border-color: rgba(125, 211, 252, .62);
+      color: #F0F9FF;
+    }
+
+    html[data-theme="dark"] input,
+    html[data-theme="dark"] textarea,
+    html[data-theme="dark"] .bulk-textarea {
+      background: var(--ts-dark-surface-low) !important;
+      border-color: var(--ts-dark-border) !important;
+      color: #E2E8F0 !important;
+    }
+
+    html[data-theme="dark"] input::placeholder,
+    html[data-theme="dark"] textarea::placeholder {
+      color: #64748B !important;
+    }
+
+    html[data-theme="dark"] .data-row {
+      border-bottom-color: #1E293B;
+    }
+
+    html[data-theme="dark"] .data-val,
+    html[data-theme="dark"] .data-key,
+    html[data-theme="dark"] .cve-summary {
+      color: var(--ts-dark-text);
+    }
+
+    html[data-theme="dark"] .score-bar,
+    html[data-theme="dark"] .bulk-progress {
+      background: #1E293B;
+    }
+
+    html[data-theme="dark"] .pill-pending,
+    html[data-theme="dark"] .pill-na {
+      background: #1E293B;
+      color: #94A3B8;
+    }
+
+    html[data-theme="dark"] .export-menu {
+      background: var(--ts-dark-surface);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, .36);
+    }
+
+    html[data-theme="dark"] .export-menu button {
+      color: var(--ts-dark-text);
+    }
+
+    html[data-theme="dark"] #ioc-bar {
+      background: rgba(17, 24, 39, .98) !important;
+      border-color: rgba(125, 211, 252, .72) !important;
+      box-shadow: 0 0 0 4px rgba(125, 211, 252, .08), 0 14px 32px rgba(0, 0, 0, .30) !important;
+    }
+
+    html[data-theme="dark"] #ioc-bar:focus-within {
+      border-color: #BAE6FD !important;
+      box-shadow: 0 0 0 4px rgba(125, 211, 252, .14), 0 18px 42px rgba(0, 0, 0, .34) !important;
+    }
+
+    html[data-theme="dark"] #ioc-bar-icon {
+      color: #7DD3FC !important;
+    }
+
+    html[data-theme="dark"] #empty-state>div:first-child {
+      background: rgba(125, 211, 252, .10) !important;
+      border: 1px solid rgba(125, 211, 252, .18);
+    }
+
+    html[data-theme="dark"] #empty-state .font-mono {
+      color: #BAE6FD !important;
+    }
+
+    html[data-theme="dark"] .help-kbd {
+      background: var(--ts-dark-surface-high);
+      border-color: #475569;
+      color: #DDE7F3;
+      box-shadow: 0 1px 0 #475569;
+    }
+
+    html[data-theme="dark"] .toggle-track {
+      background: #334155;
+      border-color: #475569;
+    }
+
+    html[data-theme="dark"] .toggle-track.on {
+      background: #E2E8F0;
+      border-color: #E2E8F0;
+    }
+
+    html[data-theme="dark"] .toggle-track.on .toggle-thumb {
+      background: #0F172A;
+    }
+
+    html[data-theme="dark"] [stroke="#E2E8F0"] {
+      stroke: #334155;
+    }
+
+    html[data-theme="dark"] #test-hash-banner,
+    html[data-theme="dark"] #conn-banner {
+      background: rgba(217, 119, 6, .16) !important;
+      border-color: rgba(251, 191, 36, .34) !important;
+      color: #FDE68A !important;
+    }
+
+    html[data-theme="dark"] .diff-panel {
+      background: rgba(217, 119, 6, .12);
+      border-color: rgba(251, 191, 36, .38);
+    }
+
+    html[data-theme="dark"] .diff-head {
+      background: rgba(217, 119, 6, .22);
+      color: #FDE68A;
+    }
+
+    html[data-theme="dark"] .diff-row {
+      border-bottom-color: rgba(251, 191, 36, .28);
+    }
+
+    html[data-theme="dark"] #overlay {
+      background: rgba(2, 6, 23, .56) !important;
+    }
   </style>
 </head>
 
@@ -1249,7 +1815,38 @@
 
     <div class="flex-1 overflow-y-auto p-6 space-y-6">
 
+      <!-- Appearance -->
+      <div>
+        <h3 class="text-xs font-bold uppercase tracking-widest text-muted mb-3">Appearance</h3>
+        <div class="space-y-3">
+          <button class="btn-ghost w-full justify-between" onclick="toggleDarkMode()" type="button">
+            <span class="flex items-center gap-2"><span class="msym sm">dark_mode</span> Dark mode</span>
+            <span id="theme-pref-track" class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+          </button>
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-txt">Workspace layout</span>
+              <span id="layout-detected-label" class="text-xs text-muted font-medium"></span>
+            </div>
+            <div class="flex gap-1.5" role="group" aria-label="Workspace layout">
+              <button class="layout-segment" id="layout-auto" type="button" onclick="setWorkspaceLayout('auto')">
+                <span class="msym sm">auto_awesome</span> Auto
+              </button>
+              <button class="layout-segment" id="layout-laptop" type="button" onclick="setWorkspaceLayout('laptop')">
+                <span class="msym sm">laptop_mac</span> Laptop
+              </button>
+              <button class="layout-segment" id="layout-desktop" type="button" onclick="setWorkspaceLayout('desktop')">
+                <span class="msym sm">desktop_windows</span> Desktop
+              </button>
+              <button class="layout-segment" id="layout-big" type="button" onclick="setWorkspaceLayout('big')">
+                <span class="msym sm">dashboard</span> Big
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
+      <hr class="border-border">
 
       <!-- API Keys -->
       <div>
@@ -1316,6 +1913,9 @@
       </div>
       <button class="btn-icon tip tip-bottom" onclick="openHelp()" data-tip="Help & guided tour"><span
           class="msym">help_outline</span></button>
+      <button id="theme-toggle" class="btn-icon tip tip-bottom" onclick="toggleDarkMode()"
+        data-tip="Toggle dark mode" aria-label="Toggle dark mode" aria-pressed="false"><span
+          class="msym">dark_mode</span></button>
       <div class="relative">
         <button class="btn-icon tip tip-bottom" onclick="toggleExportMenu(event)"
           data-tip="Export: TXT, MD, JSON, STIX 2.1, MISP, ATT&CK Navigator, NIST CSF 2.0, CSV"><span
@@ -1356,7 +1956,7 @@
   <main class="flex min-h-0" style="flex:1; overflow:hidden;">
 
     <!-- ─── LEFT PANE ────────────────────────────────────── -->
-    <aside class="flex-shrink-0 flex flex-col border-r border-border bg-surface" style="width:264px; overflow:hidden;">
+    <aside id="history-pane" class="flex-shrink-0 flex flex-col border-r border-border bg-surface" style="width:264px; overflow:hidden;">
 
       <div class="flex-shrink-0 px-3 pt-3 pb-2 space-y-2">
         <button class="btn-primary w-full justify-center" style="font-size:12px; padding:8px;"
@@ -1395,7 +1995,7 @@
 
       <!-- Command Bar -->
       <div class="flex-shrink-0 px-4 pt-3 pb-2">
-        <div class="relative" style="max-width:780px; margin:0 auto;">
+        <div id="command-wrap" class="relative" style="max-width:780px; margin:0 auto;">
           <div id="ioc-bar" class="flex items-center bg-surface rounded-xl border-2 transition-all"
             style="border-color:#0F172A; height:56px; box-shadow:0 0 0 4px rgba(15,23,42,.05), 0 2px 8px rgba(0,0,0,.06);">
             <span class="msym lg flex-shrink-0 ml-4 mr-2" style="color:#94A3B8;" id="ioc-bar-icon">search</span>
@@ -1443,6 +2043,7 @@
 
       <!-- Module Cards / Empty State -->
       <div class="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-5" id="center-content">
+        <div id="case-overview" class="case-overview items-center gap-3 flex-wrap"></div>
 
         <!-- Empty state -->
         <div id="empty-state" class="flex flex-col items-center justify-center"
@@ -1480,8 +2081,8 @@
     </section>
 
     <!-- ─── RIGHT PANE ───────────────────────────────────── -->
-    <aside class="flex-shrink-0 flex flex-col border-l border-border bg-surface" style="width:300px; overflow:hidden;">
-      <div class="flex-1 overflow-y-auto">
+    <aside id="analyst-pane" class="flex-shrink-0 flex flex-col border-l border-border bg-surface" style="width:300px; overflow:hidden;">
+      <div id="analyst-scroll" class="flex-1 overflow-y-auto">
 
         <!-- Threat Assessment -->
         <div class="px-4 pt-4 pb-3 border-b border-border">
@@ -1534,7 +2135,7 @@
         </div>
 
         <!-- Risk Indicators -->
-        <div class="px-4 py-3 border-b border-border">
+        <div id="response-actions-panel" class="px-4 py-3 border-b border-border">
           <div class="text-xs font-bold uppercase tracking-widest text-muted mb-2">Risk Indicators</div>
           <div id="risk-indicators" class="space-y-1.5">
             <div class="text-xs text-muted italic">Run an investigation to see risk indicators.</div>
@@ -1542,7 +2143,7 @@
         </div>
 
         <!-- Response Actions -->
-        <div class="px-4 py-3 border-b border-border">
+        <div id="analyst-notes-panel" class="px-4 py-3 border-b border-border">
           <div class="text-xs font-bold uppercase tracking-widest text-muted mb-2">Response Actions</div>
           <div id="action-buttons" class="space-y-1.5"></div>
         </div>
@@ -1773,6 +2374,8 @@
     let activePlaybook = 'full';
     let bulkQueue = [];
     let bulkRunning = false;
+    let themeTransitionTimer = null;
+    let layoutResizeTimer = null;
 
     // ────────────────────────────────────────────────────────
     // STORAGE
@@ -1781,6 +2384,8 @@
       try { state.investigations = JSON.parse(localStorage.getItem('threatspan_inv') || '[]'); } catch { state.investigations = []; }
       try { state.apiKeys = JSON.parse(localStorage.getItem('threatspan_keys') || '{}'); } catch { state.apiKeys = {}; }
       try { state.prefs = JSON.parse(localStorage.getItem('threatspan_prefs') || '{}'); } catch { state.prefs = {}; }
+      applyTheme();
+      applyWorkspaceLayout();
     }
     function saveInvestigations() { localStorage.setItem('threatspan_inv', JSON.stringify(state.investigations.slice(0, 50))); }
 
@@ -1857,6 +2462,91 @@
       } catch { /* server unavailable — localStorage remains the fallback */ }
     }
     function savePrefsData() { localStorage.setItem('threatspan_prefs', JSON.stringify(state.prefs)); }
+
+    function applyTheme() {
+      const dark = !!state.prefs.darkMode;
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      const btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      btn.setAttribute('aria-pressed', dark ? 'true' : 'false');
+      btn.dataset.tip = dark ? 'Switch to light mode' : 'Switch to dark mode';
+      const icon = btn.querySelector('.msym');
+      if (icon) icon.textContent = dark ? 'light_mode' : 'dark_mode';
+      setToggle('theme-pref-track', dark);
+    }
+
+    function toggleDarkMode() {
+      state.prefs.darkMode = !state.prefs.darkMode;
+      savePrefsData();
+      const root = document.documentElement;
+      const finishThemeTransition = () => {
+        root.classList.remove('theme-transitioning');
+        themeTransitionTimer = null;
+      };
+      root.classList.add('theme-transitioning');
+      if (themeTransitionTimer) clearTimeout(themeTransitionTimer);
+      if (document.startViewTransition) {
+        const transition = document.startViewTransition(() => {
+          applyTheme();
+        });
+        transition.finished.finally(() => {
+          themeTransitionTimer = setTimeout(finishThemeTransition, 20);
+        });
+        return;
+      }
+      applyTheme();
+      themeTransitionTimer = setTimeout(() => {
+        requestAnimationFrame(() => {
+          finishThemeTransition();
+        });
+      }, 40);
+    }
+
+    function getAutoWorkspaceLayout() {
+      const w = window.innerWidth || document.documentElement.clientWidth || 0;
+      if (w >= 1800) return 'big';
+      if (w >= 1500) return 'desktop';
+      return 'laptop';
+    }
+
+    function getWorkspaceLayoutMode() {
+      const mode = state.prefs.workspaceLayout || 'auto';
+      return ['auto', 'laptop', 'desktop', 'big'].includes(mode) ? mode : 'auto';
+    }
+
+    function getEffectiveWorkspaceLayout() {
+      const mode = getWorkspaceLayoutMode();
+      return mode === 'auto' ? getAutoWorkspaceLayout() : mode;
+    }
+
+    function applyWorkspaceLayout() {
+      const mode = getWorkspaceLayoutMode();
+      const effective = getEffectiveWorkspaceLayout();
+      document.documentElement.dataset.layoutMode = mode;
+      document.documentElement.dataset.layout = effective;
+      updateLayoutControls(mode, effective);
+    }
+
+    function updateLayoutControls(mode = getWorkspaceLayoutMode(), effective = getEffectiveWorkspaceLayout()) {
+      for (const id of ['auto', 'laptop', 'desktop', 'big']) {
+        const btn = document.getElementById(`layout-${id}`);
+        if (btn) btn.classList.toggle('active', id === mode);
+      }
+      const label = document.getElementById('layout-detected-label');
+      if (label) {
+        label.textContent = mode === 'auto'
+          ? `Auto: ${effective === 'big' ? 'Big' : effective[0].toUpperCase() + effective.slice(1)}`
+          : 'Manual';
+      }
+    }
+
+    function setWorkspaceLayout(mode) {
+      if (!['auto', 'laptop', 'desktop', 'big'].includes(mode)) return;
+      state.prefs.workspaceLayout = mode;
+      savePrefsData();
+      applyWorkspaceLayout();
+      showToast(`Layout: ${mode === 'auto' ? 'Auto' : mode === 'big' ? 'Big Picture' : mode[0].toUpperCase() + mode.slice(1)}`);
+    }
 
     // ────────────────────────────────────────────────────────
     // IOC UTILITIES
@@ -3832,6 +4522,7 @@
       document.getElementById('risk-indicators').innerHTML =
         '<div class="text-xs text-muted italic">Scanning…</div>';
       renderActionButtons({ riskScore: null });
+      renderCaseOverview(state.current);
       document.getElementById('analyst-notes').value = '';
       document.getElementById('audit-info').textContent = 'Scanning…';
       document.getElementById('verdict-badge').textContent = 'Scanning…';
@@ -3854,11 +4545,51 @@
       renderRiskIndicators(inv);
       renderActionButtons(inv);
       renderDiffPanel(inv);
+      renderCaseOverview(inv);
       document.getElementById('analyst-notes').value = inv.notes || '';
       const dt = new Date(inv.timestamp);
       document.getElementById('audit-info').textContent =
         `L2 · ${dt.toLocaleDateString()} ${dt.toTimeString().slice(0, 5)} · ${inv.type}`;
       updateRerunButton();
+    }
+
+    function renderCaseOverview(inv) {
+      const el = document.getElementById('case-overview');
+      if (!el) return;
+      if (!inv) {
+        el.classList.remove('show');
+        el.innerHTML = '';
+        return;
+      }
+      const verdict = inv.wellKnown
+        ? { label: inv.wellKnown.verdict, color: TEST_HASH_PALETTE.color, bg: TEST_HASH_PALETTE.bg }
+        : getVerdict(inv.riskScore);
+      const geo = inv.modules?.geoip?.data || {};
+      const vt = inv.modules?.virustotal?.data || {};
+      const asn = geo.asn || vt.asn || vt.network || '—';
+      const org = geo.org || geo.isp || vt.asOwner || '—';
+      const dt = inv.timestamp ? new Date(inv.timestamp) : null;
+      const safeAge = dt ? formatAge(Math.max(0, Date.now() - inv.timestamp)) : '—';
+      const playbookName = PLAYBOOKS[inv.playbook || activePlaybook]?.name || PLAYBOOKS[activePlaybook]?.name || 'Full Profile';
+      const score = inv.riskScore == null ? '--' : inv.riskScore;
+      const verdictLabel = verdict?.label || 'No Assessment';
+      const verdictBg = verdict?.bg || '#F1F5F9';
+      const verdictColor = verdict?.color || '#94A3B8';
+      const items = [
+        ['IOC', `<span class="font-mono" style="font-size:11px;word-break:break-all;">${esc(inv.ioc || '—')}</span>`],
+        ['Type', esc(inv.type || '—')],
+        ['Score', `<span class="pill" style="background:${verdictBg};color:${verdictColor};font-size:10px;">${score} · ${esc(verdictLabel)}</span>`],
+        ['ASN / Org', `${esc(String(asn))} <span class="text-muted font-medium">${esc(String(org))}</span>`],
+        ['Playbook', esc(playbookName)],
+        ['Age', esc(safeAge)],
+      ];
+      el.innerHTML = items.map(([k, v]) => `
+        <div style="min-width:${k === 'IOC' ? '220px' : '92px'}; flex:${k === 'IOC' || k === 'ASN / Org' ? '1 1 220px' : '0 1 auto'};">
+          <span class="case-overview-k">${k}</span>
+          <div class="case-overview-v">${v}</div>
+        </div>
+      `).join('');
+      el.classList.add('show');
     }
 
     function updateRiskGauge(score, verdict, isTestHash) {
@@ -4226,7 +4957,7 @@
     function renderSettings() {
       // Mode notice
       const notice = document.getElementById('mode-notice');
-      if (!IS_LOCAL_SERVER) {
+      if (notice && !IS_LOCAL_SERVER) {
         notice.style.background = '#FFFBEB';
         notice.style.color = '#92400E';
         notice.style.borderColor = '#FDE68A';
@@ -4246,6 +4977,7 @@
           : 'browser localStorage';
         countEl.innerHTML = `Keys configured: <strong style="color:${allDone ? '#059669' : '#D97706'}">${configuredCount} / ${totalCount}</strong> — saved to ${storageLabel}`;
       }
+      updateLayoutControls();
 
       // API key fields
       const container = document.getElementById('api-key-fields');
@@ -4383,6 +5115,8 @@
       ['threatspan_inv', 'threatspan_keys', 'threatspan_prefs'].forEach(k => localStorage.removeItem(k));
       state.investigations = []; state.apiKeys = {}; state.prefs = {};
       state.current = null;
+      applyTheme();
+      applyWorkspaceLayout();
       renderHistory();
       newInvestigation();
       closeSettings();
@@ -4411,6 +5145,7 @@
       document.getElementById('module-cards').style.display = 'none';
       document.getElementById('module-cards').innerHTML = '';
       document.getElementById('empty-state').style.display = '';
+      renderCaseOverview(null);
       updateRiskGauge(null, null);
       document.getElementById('risk-indicators').innerHTML =
         '<div class="text-xs text-muted italic">Run an investigation to see risk indicators.</div>';
@@ -5428,6 +6163,7 @@
           timestamp: Date.now(),
           riskScore: null, verdict: null,
           modules: {}, notes: '', actions: [], wellKnown: null,
+          playbook: activePlaybook,
         };
         state.investigations.unshift(stub);
         // Mark as in-flight so the spinner / pulse styling kicks in. Use a
@@ -5693,6 +6429,14 @@
     // ────────────────────────────────────────────────────────
     function init() {
       loadState();
+      window.addEventListener('resize', () => {
+        if (getWorkspaceLayoutMode() !== 'auto') return;
+        if (layoutResizeTimer) clearTimeout(layoutResizeTimer);
+        layoutResizeTimer = setTimeout(() => {
+          layoutResizeTimer = null;
+          applyWorkspaceLayout();
+        }, 120);
+      });
       renderHistory();
       renderPlaybookChips();
       renderActionButtons({ riskScore: null });
