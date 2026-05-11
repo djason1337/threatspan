@@ -62,6 +62,7 @@ const NO_OPEN = args.includes('--no-open') || process.env.THREATSPAN_NO_OPEN ===
 const STATE_DIR   = path.join(os.homedir(), '.threatspan');
 const KEYS_FILE   = path.join(STATE_DIR, 'keys.json');
 const SECRET_FILE = path.join(STATE_DIR, 'secret');
+const CASES_DIR   = path.join(STATE_DIR, 'cases');
 
 // Legacy locations (pre-1.1) — migrated on first boot, then ignored.
 const LEGACY_KEYS_FILE   = path.join(__dirname, 'keys.json');
@@ -144,6 +145,83 @@ function writeKeys(obj) {
   ensureStateDir();
   fs.writeFileSync(KEYS_FILE, encryptKeys(obj), 'utf8');
   try { fs.chmodSync(KEYS_FILE, 0o600); } catch {}
+}
+
+// ── Case persistence ─────────────────────────────────────────────────────────
+// One file per investigation under ~/.threatspan/cases/<id>.json.
+// Client-generated IDs use base36 (Date.now+random) — restrict to that charset
+// to defuse any traversal attempt before we touch the filesystem.
+const CASE_ID_RE = /^[a-z0-9]{1,40}$/;
+const MAX_CASE_BYTES = 256 * 1024;
+const MAX_LIST_RETURN = 500;
+
+function ensureCasesDir() {
+  ensureStateDir();
+  try { fs.mkdirSync(CASES_DIR, { recursive: true, mode: 0o700 }); } catch {}
+  try { fs.chmodSync(CASES_DIR, 0o700); } catch {}
+}
+
+function casePath(id) {
+  if (!CASE_ID_RE.test(id)) return null;
+  const p = path.join(CASES_DIR, id + '.json');
+  // Defense in depth: ensure resolved path stays inside CASES_DIR.
+  const resolved = path.resolve(p);
+  if (!resolved.startsWith(path.resolve(CASES_DIR) + path.sep)) return null;
+  return p;
+}
+
+function listCases() {
+  ensureCasesDir();
+  let names;
+  try { names = fs.readdirSync(CASES_DIR); } catch { return []; }
+  const out = [];
+  for (const n of names) {
+    if (!n.endsWith('.json')) continue;
+    const id = n.slice(0, -5);
+    if (!CASE_ID_RE.test(id)) continue;
+    try {
+      const raw = fs.readFileSync(path.join(CASES_DIR, n), 'utf8');
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object' && obj.id === id) out.push(obj);
+    } catch { /* skip corrupt */ }
+  }
+  out.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  return out.slice(0, MAX_LIST_RETURN);
+}
+
+function readCase(id) {
+  const p = casePath(id);
+  if (!p) return null;
+  try {
+    const raw = fs.readFileSync(p, 'utf8');
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function writeCase(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    throw new Error('case must be an object');
+  }
+  const id = obj.id;
+  if (typeof id !== 'string' || !CASE_ID_RE.test(id)) {
+    throw new Error('invalid case id');
+  }
+  const p = casePath(id);
+  if (!p) throw new Error('invalid case id');
+  ensureCasesDir();
+  const serialized = JSON.stringify(obj);
+  if (Buffer.byteLength(serialized, 'utf8') > MAX_CASE_BYTES) {
+    throw new Error('case too large');
+  }
+  fs.writeFileSync(p, serialized, { mode: 0o600 });
+  try { fs.chmodSync(p, 0o600); } catch {}
+  return true;
+}
+
+function deleteCase(id) {
+  const p = casePath(id);
+  if (!p) return false;
+  try { fs.unlinkSync(p); return true; } catch { return false; }
 }
 
 // ── Session token (CSRF defense) ─────────────────────────────────────────────
@@ -398,7 +476,7 @@ const server = http.createServer(async (req, res) => {
     if (origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'content-type, x-threatspan-token, x-apikey, key, authorization, x-otx-api-key, auth-key, api-key');
     }
     res.setHeader('Cache-Control', 'no-store');
@@ -448,6 +526,77 @@ const server = http.createServer(async (req, res) => {
     });
     return;
   }
+
+  // GET /api/cases  → list of full cases (newest first, capped)
+  if (url.pathname === '/api/cases' && req.method === 'GET') {
+    const cases = listCases();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(cases));
+    return;
+  }
+
+  // POST /api/cases  → body is full case object (must contain id)
+  if (url.pathname === '/api/cases' && req.method === 'POST') {
+    let body = '';
+    let tooBig = false;
+    req.on('data', chunk => {
+      if (tooBig) return;
+      body += chunk;
+      if (body.length > MAX_CASE_BYTES) { tooBig = true; }
+    });
+    req.on('end', () => {
+      if (tooBig) { res.writeHead(413); res.end('Payload too large'); return; }
+      try {
+        const obj = JSON.parse(body);
+        writeCase(obj);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end('{"ok":true}');
+      } catch (e) {
+        res.writeHead(400); res.end(`{"error":"${e.message.replace(/"/g, "'")}"}`);
+      }
+    });
+    return;
+  }
+
+  // GET /api/cases/<id>  → single full case
+  if (url.pathname.startsWith('/api/cases/') && req.method === 'GET') {
+    const id = url.pathname.slice('/api/cases/'.length);
+    if (!CASE_ID_RE.test(id)) { res.writeHead(400); res.end('Invalid id'); return; }
+    const c = readCase(id);
+    if (!c) { res.writeHead(404); res.end('Not found'); return; }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(c));
+    return;
+  }
+
+  // DELETE /api/cases/<id>
+  if (url.pathname.startsWith('/api/cases/') && req.method === 'DELETE') {
+    const id = url.pathname.slice('/api/cases/'.length);
+    if (!CASE_ID_RE.test(id)) { res.writeHead(400); res.end('Invalid id'); return; }
+    const ok = deleteCase(id);
+    res.writeHead(ok ? 200 : 404, { 'Content-Type': 'application/json' });
+    res.end(ok ? '{"ok":true}' : '{"error":"not found"}');
+    return;
+  }
+
+  // DELETE /api/cases  → clear all
+  if (url.pathname === '/api/cases' && req.method === 'DELETE') {
+    try {
+      const names = fs.readdirSync(CASES_DIR);
+      for (const n of names) {
+        if (!n.endsWith('.json')) continue;
+        const id = n.slice(0, -5);
+        if (!CASE_ID_RE.test(id)) continue;
+        try { fs.unlinkSync(path.join(CASES_DIR, n)); } catch {}
+      }
+    } catch {}
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('{"ok":true}');
+    return;
+  }
+
+  // Update Access-Control-Allow-Methods for DELETE on /api/cases above is also covered by the
+  // global OPTIONS handler which returns 204 before we get here.
 
   // /api/proxy?url=<encoded-target>
   if (url.pathname === '/api/proxy') {

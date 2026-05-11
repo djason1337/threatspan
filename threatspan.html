@@ -719,6 +719,47 @@
       transition: width .3s ease;
     }
 
+    /* ── Diff panel (re-run) ──────────────────────────── */
+    .diff-panel {
+      margin: 0 0 12px 0;
+      border: 1px solid #FCD34D;
+      background: #FFFBEB;
+      border-radius: 10px;
+      overflow: hidden;
+      font-size: 12px;
+    }
+    .diff-head {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 12px;
+      background: #FDE68A;
+      color: #78350F;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+    .diff-close {
+      margin-left: auto;
+      border: none; background: transparent; color: #78350F;
+      font-size: 16px; line-height: 1; cursor: pointer; padding: 0 4px;
+    }
+    .diff-body { padding: 8px 12px 10px 12px; }
+    .diff-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px dashed #FCD34D;
+    }
+    .diff-row:last-child { border-bottom: 0; }
+    .diff-empty { color: #92400E; font-style: italic; }
+    .diff-label { color: #475569; font-weight: 600; min-width: 90px; }
+    .diff-val { color: #0F172A; flex: 1; word-break: break-word; }
+    .diff-verdict .diff-val { font-weight: 700; }
+    .diff-pill {
+      display: inline-block; min-width: 36px; text-align: center;
+      padding: 1px 6px; border-radius: 999px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+    }
+
     /* ── Export menu ───────────────────────────────────── */
     .export-menu {
       position: absolute;
@@ -1119,12 +1160,17 @@
     <div class="p-5 overflow-y-auto flex-1">
       <textarea id="bulk-input" class="bulk-textarea"
         placeholder="Paste anything containing IOCs… emails, alerts, threat reports, log lines.&#10;&#10;Defanged values like 8[.]8[.]8[.]8 or hxxps://example[.]com are automatically refanged."></textarea>
-      <div class="flex items-center gap-2 mt-3">
+      <div class="flex items-center gap-2 mt-3 flex-wrap">
         <button class="btn-primary" style="padding:7px 14px; font-size:12px;" onclick="extractBulkIOCs()">
           <span class="msym sm">filter_alt</span> Extract IOCs
         </button>
         <button class="btn-ghost" style="padding:6px 12px; font-size:12px;"
-          onclick="document.getElementById('bulk-input').value=''">Clear</button>
+          onclick="document.getElementById('bulk-input').value=''; document.getElementById('bulk-extract-summary').textContent=''; document.getElementById('bulk-results').classList.add('hidden'); document.getElementById('bulk-run-btn').disabled = true;">Clear</button>
+        <label class="btn-ghost" style="padding:6px 12px; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="Import IOCs from a CSV, STIX 2.x bundle, or plain text file">
+          <span class="msym sm">upload_file</span> Import file
+          <input id="bulk-file" type="file" accept=".csv,.tsv,.json,.stix,.txt,.log,.md,text/csv,application/json,text/plain"
+            style="display:none;" onchange="importBulkFile(event)">
+        </label>
         <span id="bulk-extract-summary" class="text-xs text-muted ml-1"></span>
       </div>
 
@@ -1156,6 +1202,33 @@
       <button id="bulk-run-btn" class="btn-primary" style="padding:7px 14px; font-size:12px;"
         onclick="runBulkInvestigations()" disabled>
         <span class="msym sm">play_arrow</span> Investigate Selected
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+     IMPORT CASE MODAL
+═══════════════════════════════════════════════════════ -->
+  <div id="import-overlay" class="fixed inset-0 z-40" style="background:rgba(15,23,42,.35); backdrop-filter:blur(3px); display:none;"
+    onclick="closeImportCaseModal()"></div>
+  <div id="import-modal" class="fixed z-50"
+    style="top:50%; left:50%; transform:translate(-50%, -50%); width:560px; max-width:calc(100vw - 32px); max-height:calc(100vh - 80px); background:#fff; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.20); display:none; flex-direction:column;">
+    <div class="px-5 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
+      <div>
+        <h2 class="font-display font-bold text-primary" style="font-size:16px;">Import Case</h2>
+        <p class="text-xs text-muted mt-0.5">Paste a ThreatSpan share link or a case JSON payload.</p>
+      </div>
+      <button class="btn-icon" onclick="closeImportCaseModal()"><span class="msym">close</span></button>
+    </div>
+    <div class="p-5 overflow-y-auto flex-1">
+      <textarea id="import-input" class="bulk-textarea" style="min-height:200px;"
+        placeholder="Paste here:&#10;  • http://localhost:3000/#case=eyJp…  (share link)&#10;  • { &quot;id&quot;: &quot;…&quot;, &quot;ioc&quot;: &quot;…&quot;, … }  (JSON)"></textarea>
+      <div id="import-error" class="text-xs mt-2" style="color:#DC2626; min-height:1em;"></div>
+    </div>
+    <div class="px-5 py-4 border-t border-border flex-shrink-0 flex items-center justify-end gap-2">
+      <button class="btn-ghost" style="padding:7px 14px; font-size:12px;" onclick="closeImportCaseModal()">Cancel</button>
+      <button id="import-go-btn" class="btn-primary" style="padding:7px 14px; font-size:12px;" onclick="doImportCase()">
+        <span class="msym sm">file_open</span> Import
       </button>
     </div>
   </div>
@@ -1257,6 +1330,8 @@
             layer</button>
           <button onclick="exportReport('csf')"><span class="msym sm">account_tree</span> NIST CSF 2.0 report</button>
           <button onclick="exportReport('csv')"><span class="msym sm">table_chart</span> CSV (history)</button>
+          <button onclick="copyShareLink()"><span class="msym sm">link</span> Copy share link</button>
+          <button onclick="copyCaseJson()"><span class="msym sm">content_copy</span> Copy case JSON</button>
         </div>
       </div>
       <button class="btn-icon tip tip-bottom" onclick="openSettings()" data-tip="API keys & preferences"><span
@@ -1339,6 +1414,10 @@
                 data-tip="Bulk IOC extraction (⌘B). Paste a SIEM alert / email / log — auto-detects every IP, domain, URL & hash and queues them for investigation.">
                 <span class="msym sm">queue</span>
               </button>
+              <button id="import-case-btn" class="btn-icon tip tip-bottom" onclick="openImportCaseModal()"
+                data-tip="Import a case from a share link or pasted JSON.">
+                <span class="msym sm">file_open</span>
+              </button>
               <button id="defang-btn" class="hidden btn-icon tip tip-bottom" onclick="toggleDefang()"
                 data-tip="Defang / refang the IOC. Defanged form (8[.]8[.]8[.]8) is safe to paste in chat or tickets without triggering URL parsers.">
                 <span class="msym sm">security</span>
@@ -1346,6 +1425,10 @@
               <button id="cancel-btn" class="hidden btn-icon tip tip-bottom" onclick="cancelScan()"
                 data-tip="Cancel running scan (Esc)">
                 <span class="msym sm" style="color:#DC2626;">cancel</span>
+              </button>
+              <button id="rerun-btn" class="hidden btn-icon tip tip-bottom" onclick="rerunCurrent()"
+                data-tip="Re-run this case. Diff against the prior result is shown when the scan finishes.">
+                <span class="msym sm">restart_alt</span>
               </button>
               <button id="analyze-btn" class="btn-primary tip tip-bottom" style="padding:7px 14px; font-size:12px;"
                 onclick="analyzeIOC()" data-tip="Run investigation (Enter)">
@@ -1489,6 +1572,8 @@
                   layer</button>
                 <button onclick="exportReport('csf')"><span class="msym sm">account_tree</span> NIST CSF 2.0
                   report</button>
+                <button onclick="copyShareLink()"><span class="msym sm">link</span> Copy share link</button>
+                <button onclick="copyCaseJson()"><span class="msym sm">content_copy</span> Copy case JSON</button>
               </div>
             </div>
           </div>
@@ -1698,6 +1783,63 @@
       try { state.prefs = JSON.parse(localStorage.getItem('threatspan_prefs') || '{}'); } catch { state.prefs = {}; }
     }
     function saveInvestigations() { localStorage.setItem('threatspan_inv', JSON.stringify(state.investigations.slice(0, 50))); }
+
+    // Server-backed case persistence — survives across sessions, no 50-cap.
+    // localStorage stays as offline cache. Server is canonical when reachable.
+    async function loadCasesFromServer() {
+      if (!IS_LOCAL_SERVER) return;
+      try {
+        const r = await fetch('/api/cases', { headers: tsAuthHeaders() });
+        if (!r.ok) return;
+        const cases = await r.json();
+        if (!Array.isArray(cases)) return;
+        const byId = new Map();
+        for (const inv of state.investigations) byId.set(inv.id, inv);
+        for (const inv of cases) byId.set(inv.id, inv);
+        state.investigations = [...byId.values()].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        renderHistory();
+      } catch { /* server unavailable — localStorage stands in */ }
+    }
+
+    function persistCase(inv) {
+      if (!IS_LOCAL_SERVER || !inv || !inv.id) return;
+      try {
+        fetch('/api/cases', {
+          method: 'POST',
+          headers: tsAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify(inv),
+        }).catch(() => { });
+      } catch { /* ignore */ }
+    }
+
+    // Coalesce rapid persist calls (notes typing) into one POST per case.
+    const persistTimers = new Map();
+    function persistCaseDebounced(inv, delay = 500) {
+      if (!inv || !inv.id) return;
+      const id = inv.id;
+      if (persistTimers.has(id)) clearTimeout(persistTimers.get(id));
+      persistTimers.set(id, setTimeout(() => {
+        persistTimers.delete(id);
+        persistCase(inv);
+      }, delay));
+    }
+
+    async function deleteCaseOnServer(id) {
+      if (!IS_LOCAL_SERVER || !id) return;
+      try {
+        await fetch('/api/cases/' + encodeURIComponent(id), {
+          method: 'DELETE',
+          headers: tsAuthHeaders(),
+        });
+      } catch { /* ignore */ }
+    }
+
+    async function clearAllCasesOnServer() {
+      if (!IS_LOCAL_SERVER) return;
+      try {
+        await fetch('/api/cases', { method: 'DELETE', headers: tsAuthHeaders() });
+      } catch { /* ignore */ }
+    }
     function saveApiKeys() {
       localStorage.setItem('threatspan_keys', JSON.stringify(state.apiKeys));
       if (IS_LOCAL_SERVER) fetch('/api/keys', { method: 'POST', headers: tsAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(state.apiKeys) }).catch(() => { });
@@ -3091,6 +3233,7 @@
         playbook: playbook.id,
         actions: [],
         wellKnown,
+        priorCase: opts.priorCase || null,
       };
 
       // Module list = type-applicable ∩ playbook-allowed (or all type-applicable for 'full')
@@ -3190,9 +3333,17 @@
       const userEdited = isForeground() && document.getElementById('analyst-notes').value.trim() !== '';
       if (!userEdited) inv.notes = generateAnalystBrief(inv);
 
+      if (inv.priorCase) {
+        inv.diffVsPrior = computeCaseDiff(inv.priorCase, inv);
+        // priorCase is large and only needed to compute the diff. Drop it now
+        // so re-run chains don't multiply on-disk case size.
+        inv.priorCase = null;
+      }
+
       state.investigations = state.investigations.filter(i => i.id !== inv.id);
       state.investigations.unshift(inv);
       saveInvestigations();
+      persistCase(inv);
       renderHistory();
       if (isForeground()) {
         scanRunning = false;
@@ -3702,10 +3853,12 @@
       showTestHashBanner(inv.wellKnown || null);
       renderRiskIndicators(inv);
       renderActionButtons(inv);
+      renderDiffPanel(inv);
       document.getElementById('analyst-notes').value = inv.notes || '';
       const dt = new Date(inv.timestamp);
       document.getElementById('audit-info').textContent =
         `L2 · ${dt.toLocaleDateString()} ${dt.toTimeString().slice(0, 5)} · ${inv.type}`;
+      updateRerunButton();
     }
 
     function updateRiskGauge(score, verdict, isTestHash) {
@@ -3909,7 +4062,11 @@
         if (!inv.actions) inv.actions = [];
         inv.actions.push({ idx, ts: new Date().toISOString() });
         const si = state.investigations.findIndex(i => i.id === inv.id);
-        if (si !== -1) { state.investigations[si].actions = inv.actions; saveInvestigations(); }
+        if (si !== -1) {
+          state.investigations[si].actions = inv.actions;
+          saveInvestigations();
+          persistCase(state.investigations[si]);
+        }
       }
     }
 
@@ -3917,7 +4074,11 @@
       if (!state.current) return;
       state.current.notes = document.getElementById('analyst-notes').value;
       const si = state.investigations.findIndex(i => i.id === state.current.id);
-      if (si !== -1) { state.investigations[si].notes = state.current.notes; saveInvestigations(); }
+      if (si !== -1) {
+        state.investigations[si].notes = state.current.notes;
+        saveInvestigations();
+        persistCaseDebounced(state.investigations[si]);
+      }
     }
 
     // ────────────────────────────────────────────────────────
@@ -4212,6 +4373,7 @@
       if (!confirm('Clear all investigation history?')) return;
       state.investigations = [];
       saveInvestigations();
+      clearAllCasesOnServer();
       renderHistory();
       showToast('History cleared');
     }
@@ -4268,6 +4430,178 @@
       const bar = document.getElementById('scan-status-bar');
       if (active) { bar.classList.remove('hidden'); bar.classList.add('flex'); document.getElementById('scan-status-text').textContent = text; }
       else { bar.classList.add('hidden'); bar.classList.remove('flex'); }
+      updateRerunButton();
+    }
+
+    function updateRerunButton() {
+      const btn = document.getElementById('rerun-btn');
+      if (!btn) return;
+      const canRerun = !!(state.current && state.current.ioc && !inFlightScans.has(state.current.id));
+      btn.classList.toggle('hidden', !canRerun);
+    }
+
+    function rerunCurrent() {
+      if (!state.current) return;
+      const ioc = state.current.ioc;
+      const priorSnapshot = stripCaseForShare(state.current);
+      startInvestigation(ioc, { priorCase: priorSnapshot });
+    }
+
+    // ────────────────────────────────────────────────────────
+    // INVESTIGATION DIFF
+    // ────────────────────────────────────────────────────────
+    function computeCaseDiff(prior, current) {
+      if (!prior || !current) return null;
+
+      const diff = {
+        priorId: prior.id || null,
+        priorTimestamp: prior.timestamp || null,
+        currentTimestamp: current.timestamp || null,
+        verdictChanged: false,
+        priorVerdict: prior.verdict || null,
+        newVerdict: current.verdict || null,
+        priorScore: prior.riskScore ?? null,
+        newScore: current.riskScore ?? null,
+        scoreDelta: null,
+        modules: [],
+      };
+
+      if (diff.priorVerdict !== diff.newVerdict) diff.verdictChanged = true;
+      if (typeof diff.priorScore === 'number' && typeof diff.newScore === 'number') {
+        diff.scoreDelta = diff.newScore - diff.priorScore;
+      }
+
+      const modIds = new Set([
+        ...Object.keys(prior.modules || {}),
+        ...Object.keys(current.modules || {}),
+      ]);
+
+      for (const modId of modIds) {
+        const p = (prior.modules || {})[modId];
+        const c = (current.modules || {})[modId];
+        const entry = { modId, kind: null, detail: '' };
+
+        if (p && !c) { entry.kind = 'removed'; entry.detail = 'Module no longer present'; }
+        else if (!p && c) { entry.kind = 'added'; entry.detail = c.summary || c.status || 'New module'; }
+        else if (p && c) {
+          // Same module — compare scores, summaries, VT-style detection counts.
+          const ps = p.score ?? null, cs = c.score ?? null;
+          const summaryChanged = (p.summary || '') !== (c.summary || '');
+          const statusChanged = (p.status || '') !== (c.status || '');
+
+          // VT-specific drill-down
+          let vtDelta = null;
+          if (modId === 'virustotal') {
+            const pm = p.data?.malicious ?? null;
+            const cm = c.data?.malicious ?? null;
+            if (typeof pm === 'number' && typeof cm === 'number' && pm !== cm) {
+              vtDelta = { kind: 'vt-malicious', from: pm, to: cm };
+            }
+          }
+
+          if (vtDelta) {
+            entry.kind = 'changed';
+            const dir = vtDelta.to > vtDelta.from ? '+' : '−';
+            const mag = Math.abs(vtDelta.to - vtDelta.from);
+            entry.detail = `VT detections: ${vtDelta.from} → ${vtDelta.to} (${dir}${mag})`;
+          } else if (ps !== cs && (typeof ps === 'number' || typeof cs === 'number')) {
+            entry.kind = 'changed';
+            entry.detail = `Score ${ps ?? '—'} → ${cs ?? '—'}` + (summaryChanged ? ` · ${c.summary || ''}` : '');
+          } else if (statusChanged) {
+            entry.kind = 'changed';
+            entry.detail = `${p.status} → ${c.status}`;
+          } else if (summaryChanged) {
+            entry.kind = 'changed';
+            entry.detail = c.summary || '';
+          } else {
+            continue; // no meaningful change
+          }
+        }
+        diff.modules.push(entry);
+      }
+
+      return diff;
+    }
+
+    function diffPanelHtml(diff) {
+      if (!diff) return '';
+      const ageMs = diff.currentTimestamp && diff.priorTimestamp ? (diff.currentTimestamp - diff.priorTimestamp) : null;
+      const ageStr = ageMs ? formatAge(ageMs) : '';
+
+      const verdictBlock = diff.verdictChanged
+        ? `<div class="diff-row diff-verdict"><span class="diff-label">Verdict</span><span class="diff-val">${esc(diff.priorVerdict || '—')} → <strong>${esc(diff.newVerdict || '—')}</strong></span></div>`
+        : '';
+
+      let scoreBlock = '';
+      if (diff.scoreDelta !== null && diff.scoreDelta !== 0) {
+        const sign = diff.scoreDelta > 0 ? '+' : '';
+        const color = diff.scoreDelta > 0 ? '#DC2626' : '#059669';
+        scoreBlock = `<div class="diff-row"><span class="diff-label">Risk score</span><span class="diff-val">${diff.priorScore ?? '—'} → <strong>${diff.newScore ?? '—'}</strong> <span style="color:${color}; font-weight:700;">(${sign}${diff.scoreDelta})</span></span></div>`;
+      }
+
+      const modRows = diff.modules.length
+        ? diff.modules.map(m => {
+            const colorMap = { added: '#059669', removed: '#94A3B8', changed: '#D97706' };
+            const labelMap = { added: 'NEW', removed: 'GONE', changed: 'Δ' };
+            const c = colorMap[m.kind] || '#475569';
+            const lbl = labelMap[m.kind] || '·';
+            const name = MODULE_DEFS[m.modId]?.name || m.modId;
+            return `<div class="diff-row"><span class="diff-pill" style="background:${c}1A; color:${c};">${lbl}</span><span class="diff-label">${esc(name)}</span><span class="diff-val">${esc(m.detail)}</span></div>`;
+          }).join('')
+        : '<div class="diff-row diff-empty">No module-level changes.</div>';
+
+      const noChanges = !verdictBlock && !scoreBlock && !diff.modules.length;
+      if (noChanges) {
+        return `<div id="diff-panel" class="diff-panel">
+          <div class="diff-head">
+            <span class="msym sm">history</span>
+            <span>Re-run · no significant changes${ageStr ? ` since ${ageStr} ago` : ''}</span>
+          </div>
+        </div>`;
+      }
+
+      return `<div id="diff-panel" class="diff-panel">
+        <div class="diff-head">
+          <span class="msym sm">history</span>
+          <span>Changes since last scan${ageStr ? ` (${ageStr} ago)` : ''}</span>
+          <button class="diff-close" onclick="dismissDiffPanel()" title="Hide">×</button>
+        </div>
+        <div class="diff-body">
+          ${verdictBlock}
+          ${scoreBlock}
+          ${modRows}
+        </div>
+      </div>`;
+    }
+
+    function formatAge(ms) {
+      const sec = Math.floor(ms / 1000);
+      if (sec < 60) return `${sec}s`;
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min}m`;
+      const hr = Math.floor(min / 60);
+      if (hr < 48) return `${hr}h`;
+      const day = Math.floor(hr / 24);
+      return `${day}d`;
+    }
+
+    function renderDiffPanel(inv) {
+      // Remove any prior panel
+      const existing = document.getElementById('diff-panel');
+      if (existing) existing.remove();
+      if (!inv || !inv.diffVsPrior) return;
+      const container = document.getElementById('module-cards');
+      if (!container) return;
+      const wrap = document.createElement('div');
+      wrap.innerHTML = diffPanelHtml(inv.diffVsPrior);
+      const node = wrap.firstElementChild;
+      if (node) container.parentNode.insertBefore(node, container);
+    }
+
+    function dismissDiffPanel() {
+      const p = document.getElementById('diff-panel');
+      if (p) p.remove();
+      if (state.current) state.current.diffVsPrior = null;
     }
 
     const TYPE_COLORS = {
@@ -4821,6 +5155,241 @@
       document.getElementById('bulk-run-btn').disabled = false;
     }
 
+    // Pull IOC-bearing cells/values out of CSV or STIX 2.x bundles.
+    // Falls back to treating the file as plain text (which goes through
+    // the same regex extractor as the paste-box).
+    function parseCSV(text) {
+      // Minimal CSV: respects double-quoted fields with escaped quotes.
+      const rows = [];
+      let cur = [];
+      let field = '';
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (text[i + 1] === '"') { field += '"'; i++; }
+            else { inQuotes = false; }
+          } else { field += ch; }
+        } else {
+          if (ch === '"') { inQuotes = true; }
+          else if (ch === ',' || ch === '\t') { cur.push(field); field = ''; }
+          else if (ch === '\n') { cur.push(field); rows.push(cur); cur = []; field = ''; }
+          else if (ch === '\r') { /* skip */ }
+          else { field += ch; }
+        }
+      }
+      if (field.length || cur.length) { cur.push(field); rows.push(cur); }
+      return rows.flat().filter(Boolean).join('\n');
+    }
+
+    function parseStixBundle(obj) {
+      // STIX 2.x: walk top-level objects[], extract `pattern` from indicators,
+      // and direct value fields from cyber-observable SDOs. Pattern matches
+      // produced by tools look like [domain-name:value = 'evil.com'].
+      const out = [];
+      const items = Array.isArray(obj?.objects) ? obj.objects
+        : (Array.isArray(obj) ? obj : [obj]);
+      const VAL_RE = /(?:value|hash(?:es)?)\s*=\s*'([^']+)'|(?:value|name)"\s*:\s*"([^"]+)"/g;
+      for (const it of items) {
+        if (!it || typeof it !== 'object') continue;
+        if (typeof it.pattern === 'string') {
+          let m;
+          const re = /'([^']+)'|"([^"]+)"/g;
+          while ((m = re.exec(it.pattern)) !== null) out.push(m[1] || m[2]);
+        }
+        // Cyber-observable SDOs: file/url/domain/ipv4-addr/etc.
+        if (typeof it.value === 'string') out.push(it.value);
+        if (typeof it.url === 'string') out.push(it.url);
+        if (it.hashes && typeof it.hashes === 'object') {
+          for (const h of Object.values(it.hashes)) if (typeof h === 'string') out.push(h);
+        }
+        if (typeof it.name === 'string' && (it.type === 'domain-name' || it.type === 'url')) out.push(it.name);
+      }
+      return out.join('\n');
+    }
+
+    // ────────────────────────────────────────────────────────
+    // SHARE LINK + IMPORT CASE
+    // ────────────────────────────────────────────────────────
+    // base64url so the encoded case is URL-fragment-safe (no +, /, =).
+    function b64UrlEncode(str) {
+      const b64 = btoa(unescape(encodeURIComponent(str)));
+      return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function b64UrlDecode(s) {
+      const padded = s.replace(/-/g, '+').replace(/_/g, '/') +
+        '='.repeat((4 - s.length % 4) % 4);
+      return decodeURIComponent(escape(atob(padded)));
+    }
+
+    function buildShareUrl(inv) {
+      if (!inv) return null;
+      // Drop bulky AbortController etc. — only the data fields cross.
+      const payload = { v: 1, inv: stripCaseForShare(inv) };
+      return `${location.origin}${location.pathname}#case=${b64UrlEncode(JSON.stringify(payload))}`;
+    }
+
+    function stripCaseForShare(inv) {
+      // Investigations only contain plain JSON-safe fields by construction
+      // (id, ioc, type, timestamp, riskScore, verdict, modules, notes, …),
+      // so a structured clone is enough. Defensive copy via JSON to skip
+      // any accidental functions / DOM refs.
+      try { return JSON.parse(JSON.stringify(inv)); }
+      catch { return null; }
+    }
+
+    function copyShareLink() {
+      if (!state.current) { showToast('No active investigation', 'error'); return; }
+      const url = buildShareUrl(state.current);
+      if (!url) { showToast('Could not build share link', 'error'); return; }
+      if (url.length > 24000) {
+        // Most browsers handle ~32-100KB hashes, but Slack and other paste
+        // targets often choke on huge URLs. Warn the analyst.
+        showToast('Share link is very long — use "Copy case JSON" for reliable paste', 'error');
+      }
+      copyToClipboard(url);
+      showToast('Share link copied');
+    }
+
+    function copyCaseJson() {
+      if (!state.current) { showToast('No active investigation', 'error'); return; }
+      const payload = stripCaseForShare(state.current);
+      copyToClipboard(JSON.stringify(payload, null, 2));
+      showToast('Case JSON copied');
+    }
+
+    function openImportCaseModal() {
+      document.getElementById('import-overlay').style.display = 'block';
+      const m = document.getElementById('import-modal');
+      m.style.display = 'flex';
+      document.getElementById('import-error').textContent = '';
+      setTimeout(() => document.getElementById('import-input').focus(), 60);
+    }
+    function closeImportCaseModal() {
+      document.getElementById('import-overlay').style.display = 'none';
+      document.getElementById('import-modal').style.display = 'none';
+    }
+
+    function decodeShareString(raw) {
+      // Accepts a full URL (with #case=…), a fragment ("case=…" or "#case=…"),
+      // or a raw JSON payload.
+      let s = (raw || '').trim();
+      if (!s) return null;
+      try {
+        if (s.startsWith('http://') || s.startsWith('https://')) {
+          const u = new URL(s);
+          if (u.hash && u.hash.includes('case=')) s = u.hash.split('case=')[1];
+        }
+        if (s.startsWith('#case=')) s = s.slice(6);
+        if (s.startsWith('case=')) s = s.slice(5);
+      } catch { /* fall through */ }
+
+      // Try fragment-encoded payload first
+      try {
+        const obj = JSON.parse(b64UrlDecode(s));
+        if (obj && (obj.inv || obj.id)) return obj.inv || obj;
+      } catch { /* not base64 — try raw JSON */ }
+
+      try {
+        const obj = JSON.parse(s);
+        if (obj && (obj.inv || obj.id)) return obj.inv || obj;
+      } catch { /* nope */ }
+
+      return null;
+    }
+
+    function importCaseObject(raw) {
+      const inv = decodeShareString(raw);
+      if (!inv || typeof inv !== 'object' || !inv.ioc) return { ok: false, reason: 'Could not parse a valid case from input' };
+
+      // Assign a fresh ID so a re-imported case can coexist with a re-run.
+      // Mark imported for transparency in the history list.
+      const cloned = stripCaseForShare(inv);
+      cloned.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      cloned.imported = true;
+      cloned.importedAt = Date.now();
+
+      state.investigations = state.investigations.filter(i => i.id !== cloned.id);
+      state.investigations.unshift(cloned);
+      saveInvestigations();
+      persistCase(cloned);
+      renderHistory();
+      loadInvestigation(cloned.id);
+      return { ok: true };
+    }
+
+    function doImportCase() {
+      const raw = document.getElementById('import-input').value;
+      const errEl = document.getElementById('import-error');
+      errEl.textContent = '';
+      const result = importCaseObject(raw);
+      if (!result.ok) { errEl.textContent = result.reason; return; }
+      closeImportCaseModal();
+      showToast('Case imported', 'success');
+    }
+
+    function processHashFragment() {
+      const h = location.hash;
+      if (!h || !h.includes('case=')) return;
+      const r = importCaseObject(h);
+      if (r.ok) {
+        // Strip the fragment so a reload doesn't re-import.
+        history.replaceState({}, '', location.pathname + location.search);
+      } else {
+        showToast('Could not import case from URL: ' + r.reason, 'error');
+      }
+    }
+
+    async function importCaseFromClipboard() {
+      try {
+        const txt = await navigator.clipboard.readText();
+        if (!txt) { showToast('Clipboard is empty', 'error'); return; }
+        const r = importCaseObject(txt);
+        if (r.ok) showToast('Case imported from clipboard', 'success');
+        else showToast(r.reason, 'error');
+      } catch (e) {
+        showToast('Clipboard read failed: ' + e.message, 'error');
+      }
+    }
+
+    async function importBulkFile(evt) {
+      const file = evt.target.files && evt.target.files[0];
+      if (!file) return;
+      const max = 5 * 1024 * 1024;
+      if (file.size > max) {
+        showToast('File too large (max 5 MB)', 'error');
+        evt.target.value = '';
+        return;
+      }
+      let text;
+      try { text = await file.text(); }
+      catch (e) { showToast('Could not read file: ' + e.message, 'error'); evt.target.value = ''; return; }
+
+      const name = (file.name || '').toLowerCase();
+      let extracted = '';
+      const isCsv = name.endsWith('.csv') || name.endsWith('.tsv');
+      const looksJson = text.trimStart().startsWith('{') || text.trimStart().startsWith('[');
+
+      if (looksJson) {
+        try {
+          const obj = JSON.parse(text);
+          const isStix = (obj && (obj.type === 'bundle' || obj.spec_version || (Array.isArray(obj.objects) && obj.objects.some(o => o?.type === 'indicator'))));
+          extracted = isStix ? parseStixBundle(obj) : text;
+        } catch { extracted = text; }
+      } else if (isCsv) {
+        extracted = parseCSV(text);
+      } else {
+        extracted = text;
+      }
+
+      const input = document.getElementById('bulk-input');
+      input.value = extracted;
+      extractBulkIOCs();
+      showToast(`Imported ${file.name}`, 'success');
+      evt.target.value = '';
+    }
+
     function renderBulkList() {
       const c = document.getElementById('bulk-list');
       c.innerHTML = bulkExtracted.map(i => {
@@ -4986,7 +5555,9 @@
         inp.focus(); inp.select();
       }
       if (e.key === 'Escape') {
-        if (document.getElementById('bulk-modal').classList.contains('open')) closeBulkModal();
+        const importOpen = document.getElementById('import-modal')?.style.display === 'flex';
+        if (importOpen) closeImportCaseModal();
+        else if (document.getElementById('bulk-modal').classList.contains('open')) closeBulkModal();
         else if (document.getElementById('help-drawer').classList.contains('open')) closeHelp();
         else if (document.getElementById('settings-drawer').classList.contains('open')) closeSettings();
         else if (scanRunning) cancelScan();
@@ -5128,6 +5699,7 @@
       document.getElementById('ioc-input').focus();
       checkServerStatus();
       processUrlParams();
+      processHashFragment();
       if (IS_LOCAL_SERVER) {
         // Load keys from disk first; first-run check runs after so we don't
         // falsely pop settings when keys exist on disk but not in localStorage.
@@ -5135,6 +5707,7 @@
           if (document.getElementById('settings-drawer').classList.contains('open')) renderSettings();
           if (!KEY_DEFS.some(k => state.apiKeys[k.keyName]?.trim())) openSettings();
         });
+        loadCasesFromServer();
       } else {
         if (!KEY_DEFS.some(k => state.apiKeys[k.keyName]?.trim())) setTimeout(openSettings, 400);
       }
