@@ -1525,6 +1525,21 @@
 
     html[data-theme="dark"] .hist-item.in-flight {
       background: linear-gradient(90deg, #10203B 0%, #0F172A 60%);
+      animation-name: histPulseDark;
+    }
+
+    html[data-theme="dark"] .shimmer {
+      animation-name: shimmerDark;
+    }
+
+    @keyframes histPulseDark {
+      0%, 100% { background: #0F172A; }
+      50% { background: #10203B; }
+    }
+
+    @keyframes shimmerDark {
+      0%, 100% { background: #111827; }
+      50% { background: #1E293B; }
     }
 
     html[data-theme="dark"] .btn-primary {
@@ -1886,6 +1901,9 @@
             style="display:none;" onchange="importBulkFile(event)">
         </label>
         <span id="bulk-extract-summary" class="text-xs text-muted ml-1"></span>
+      </div>
+      <div class="mt-3">
+        <div class="flex items-center gap-1.5 flex-wrap" id="bulk-playbook-chips"></div>
       </div>
 
       <div id="bulk-results" class="mt-4 hidden">
@@ -2524,6 +2542,7 @@
     const keyStatus = {};
     let currentDefanged = false;
     let activePlaybook = 'full';
+    let bulkPlaybook = 'full';
     let bulkQueue = [];
     let bulkRunning = false;
     let themeTransitionTimer = null;
@@ -4209,7 +4228,8 @@
       const background = !!opts.background &&
         !(state.current && opts.prebuiltId && state.current.id === opts.prebuiltId);
 
-      const playbook = PLAYBOOKS[activePlaybook] || PLAYBOOKS.full;
+      const playbookId = opts.playbook && PLAYBOOKS[opts.playbook] ? opts.playbook : activePlaybook;
+      const playbook = PLAYBOOKS[playbookId] || PLAYBOOKS.full;
       const wellKnown = lookupWellKnownHash(ioc, type) || lookupWellKnownIP(ioc, type) || lookupWellKnownDomain(ioc, type);
       const inv = {
         id: opts.prebuiltId || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
@@ -4230,7 +4250,15 @@
       const mods = playbook.modules
         ? typeMods.filter(m => playbook.modules.includes(m))
         : typeMods;
-      if (!mods.length) { showToast(`Playbook "${playbook.name}" has no applicable modules for ${type}`, 'error'); return; }
+      if (!mods.length) {
+        if (opts.prebuiltId) {
+          state.investigations = state.investigations.filter(i => i.id !== opts.prebuiltId);
+          inFlightScans.delete(opts.prebuiltId);
+          renderHistory();
+        }
+        showToast(`Playbook "${playbook.name}" has no applicable modules for ${type}`, 'error');
+        return;
+      }
       for (const m of mods) inv.modules[m] = { status: 'pending', summary: 'Waiting…', score: null };
 
       // Per-investigation abort controller — prior scans keep running in the
@@ -6106,6 +6134,23 @@
       renderPlaybookChips();
       if (id !== 'full') showToast(`Playbook: ${PLAYBOOKS[id].name}`);
     }
+    function renderBulkPlaybookChips() {
+      const c = document.getElementById('bulk-playbook-chips');
+      if (!c) return;
+      c.innerHTML = '<span class="text-xs text-muted font-medium tip mr-1" data-tip="Choose the playbook applied to every selected IOC in this bulk run.">Scan with:</span>' +
+        Object.values(PLAYBOOKS).map(p => {
+          const tip = `${esc(p.name)} — ${esc(p.desc)}`;
+          return `
+    <button class="pb-chip tip${bulkPlaybook === p.id ? ' active' : ''}" onclick="selectBulkPlaybook('${p.id}')" data-tip="${tip}">
+      <span class="msym">${p.icon}</span>${esc(p.name)}
+    </button>`;
+        }).join('');
+    }
+    function selectBulkPlaybook(id) {
+      if (!PLAYBOOKS[id]) return;
+      bulkPlaybook = id;
+      renderBulkPlaybookChips();
+    }
 
     // ────────────────────────────────────────────────────────
     // IOC EXTRACTION (used by bulk + paste detection)
@@ -6161,6 +6206,8 @@
     let bulkSelected = new Set();
 
     function openBulkModal() {
+      bulkPlaybook = PLAYBOOKS[activePlaybook] ? activePlaybook : 'full';
+      renderBulkPlaybookChips();
       document.getElementById('bulk-overlay').classList.add('visible');
       document.getElementById('bulk-modal').classList.add('open');
       setTimeout(() => document.getElementById('bulk-input').focus(), 100);
@@ -6448,6 +6495,7 @@
     async function runBulkInvestigations() {
       const targets = bulkExtracted.filter(i => bulkSelected.has(i.value));
       if (!targets.length) return;
+      const selectedPlaybook = PLAYBOOKS[bulkPlaybook] ? bulkPlaybook : 'full';
       bulkRunning = true;
       // Dismiss the modal immediately — scans run in the background and surface
       // in history as they complete. The .open class drives the CSS transition.
@@ -6462,7 +6510,7 @@
           timestamp: Date.now(),
           riskScore: null, verdict: null,
           modules: {}, notes: '', actions: [], wellKnown: null,
-          playbook: activePlaybook,
+          playbook: selectedPlaybook,
         };
         state.investigations.unshift(stub);
         // Mark as in-flight so the spinner / pulse styling kicks in. Use a
@@ -6473,7 +6521,7 @@
       });
       renderHistory();
 
-      showToast(`Queued ${targets.length} IOC${targets.length > 1 ? 's' : ''} for investigation`, 'success');
+      showToast(`Queued ${targets.length} IOC${targets.length > 1 ? 's' : ''} with ${PLAYBOOKS[selectedPlaybook].name}`, 'success');
       let done = 0;
       for (const q of queued) {
         if (!bulkRunning) {
@@ -6482,7 +6530,7 @@
           state.investigations = state.investigations.filter(i => i.id !== q.id);
           continue;
         }
-        try { await startInvestigation(q.value, { background: true, prebuiltId: q.id }); }
+        try { await startInvestigation(q.value, { background: true, prebuiltId: q.id, playbook: selectedPlaybook }); }
         catch (e) { console.warn('bulk skip:', q.value, e); inFlightScans.delete(q.id); }
         done++;
       }
