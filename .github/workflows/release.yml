@@ -72,15 +72,6 @@ jobs:
           chmod +x ./threatspan-macos-arm64
           ./threatspan-macos-arm64
           \`\`\`
-
-          ---
-
-          ### Homebrew tap update (maintainer notes)
-          Update \`Formula/threatspan.rb\` in \`djason1337/homebrew-tap\`:
-          \`\`\`ruby
-          url    "${{ steps.npm_sha.outputs.url }}"
-          sha256 "${{ steps.npm_sha.outputs.sha256 }}"
-          \`\`\`
           EOF
 
       - name: Create GitHub Release

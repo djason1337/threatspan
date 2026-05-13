@@ -172,7 +172,6 @@ Read the full model in [SECURITY.md](SECURITY.md).
 ## Documentation
 
 - [User Guide](docs/USER_GUIDE.md)
-- [Homebrew Tap Setup](dist/HOMEBREW.md)
 - [Security Model](SECURITY.md)
 
 ## Contributing
