@@ -4,3 +4,4 @@ node_modules/
 .threatspan_key
 test_iocs.md
 dist/binaries/
+output/

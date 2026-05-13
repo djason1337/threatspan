@@ -1,72 +1,44 @@
 # ThreatSpan
 
-I built ThreatSpan because I was tired of juggling tabs during home labs. VirusTotal, AbuseIPDB, Shodan, GreyNoise, URLScan, all of them. Copying the same indicator into each one, stitching results together in my head. It works, but it's slow, and it's how things get missed.
+**ThreatSpan is a local-first investigation console for SOC analysts, incident responders, and home-lab defenders.**
 
-So I built the workflow I wanted. Paste an IP, domain, URL, or hash and get enrichment **from 14 sources at once.** One screen, one indicator, everything pulled up before you start clicking.
+Paste an IP address, domain, URL, or file hash and ThreatSpan fans out to reputation, infrastructure, malware, vulnerability, and framework-mapping sources in one keyboard-first workspace.
 
-It runs locally. No cloud backend, no account, nothing leaves your machine except the calls to the API providers you configure. The point is faster triage with better context, without giving up control of where your indicators get sent.
+![ThreatSpan investigation workspace](docs/assets/threatspan-investigation.png)
 
----
+## Why ThreatSpan
 
-## Install / Run
+ThreatSpan exists for the moment when an alert lands and you need context fast. Instead of bouncing between VirusTotal, AbuseIPDB, Shodan, GreyNoise, urlscan.io, OTX, abuse.ch, DNS, WHOIS, CISA KEV, NVD, and notes, you get one investigation surface:
 
-Most options need **[Node.js](https://nodejs.org) v14+** (zero dependencies, no `npm install`). The single-file binaries do not.
+- **14 enrichment modules** across reputation, malware intel, infrastructure, DNS, WHOIS, urlscan screenshots, CISA KEV, NVD, and MITRE ATT&CK.
+- **Live risk scoring** with Clean, Likely Clean, Suspicious, and Malicious verdicts.
+- **Scenario playbooks** for quick triage, phishing, ransomware IOCs, and C2 infrastructure.
+- **Bulk IOC extraction** from alerts, logs, emails, CSV, text, and STIX-like payloads.
+- **Analyst-ready exports** for tickets, wikis, STIX 2.1, MISP, ATT&CK Navigator, NIST CSF 2.0, JSON, CSV, and plain text.
+- **Local-first privacy**: no account, no telemetry, no cloud backend.
 
-### 1. Homebrew (macOS / Linux)
+ThreatSpan runs on your machine. API calls only go to the providers you configure.
 
-```bash
-brew install djason1337/tap/threatspan
-threatspan
-```
+## Install
 
-### 2. `npx` — no install (easiest)
+**Supported platforms:** macOS and Linux. Windows is not supported at this time.
+
+ThreatSpan requires **Node.js 14 or newer**. There are no runtime npm dependencies.
+
+### Run with npx
 
 ```bash
 npx threatspan
 ```
 
-### 3. `npm install -g`
+### Install globally
 
 ```bash
 npm install -g threatspan
 threatspan
 ```
 
-### 4. Single-file binary — no Node required
-
-Grab the right binary for your platform from the [latest release](https://github.com/djason1337/threatspan/releases/latest):
-
-| Platform | Binary |
-|----------|--------|
-| macOS (Apple Silicon) | `threatspan-macos-arm64` |
-| macOS (Intel) | `threatspan-macos-x64` |
-| Linux x64 | `threatspan-linux-x64` |
-| Linux arm64 | `threatspan-linux-arm64` |
-| Windows x64 | `threatspan-win-x64.exe` |
-
-Verify the download (recommended):
-
-```bash
-shasum -a 256 -c SHA256SUMS.txt --ignore-missing
-```
-
-Then run:
-
-```bash
-chmod +x threatspan-macos-arm64
-./threatspan-macos-arm64
-```
-
-> **macOS Gatekeeper.** The binary and `.command` launcher are not signed with an Apple Developer ID. macOS will block them on first run with *"cannot be opened because it is from an unidentified developer."* Two ways past it:
->
-> ```bash
-> # one-liner: strip the quarantine flag
-> xattr -d com.apple.quarantine ./threatspan-macos-arm64
-> ```
->
-> …or in Finder: **right-click the file → Open → Open**. macOS remembers the choice. You only do this once per download.
-
-### 5. Clone & run (Linux / macOS)
+### Run from source
 
 ```bash
 git clone https://github.com/djason1337/threatspan.git
@@ -74,185 +46,149 @@ cd threatspan
 ./threatspan
 ```
 
-### 6. Double-click launcher
+Open the console at:
 
-- **macOS:** double-click `ThreatSpan.command` in Finder.
-- **Windows:** double-click `ThreatSpan.cmd` in Explorer.
-
-Both open a terminal, start the server, and open your browser. Close the window to stop.
-
-(macOS first run: see Gatekeeper note above.)
-
-### 7. Linux desktop entry
-
-To get a launcher in your applications menu:
-
-```bash
-sudo cp examples/threatspan.desktop /usr/share/applications/
-# or per-user:
-mkdir -p ~/.local/share/applications
-cp examples/threatspan.desktop ~/.local/share/applications/
+```text
+http://localhost:3000
 ```
 
-### 8. Auto-start at login (macOS)
+## First Investigation
 
-```bash
-# Edit examples/com.threatspan.plist — replace /PATH/TO/threatspan
-#   with the absolute path to your repo (use `pwd` inside the repo).
-cp examples/com.threatspan.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.threatspan.plist
-```
+1. Start ThreatSpan.
+2. Open **Settings** and add whichever API keys you have.
+3. Paste an IOC into the investigation bar.
+4. Pick a playbook or keep **Full Profile** selected.
+5. Press **Enter**.
+6. Expand any module card for full structured details.
+7. Export the case into the format your workflow needs.
 
-ThreatSpan will start on every login at `http://localhost:3000`. To uninstall:
+ThreatSpan supports IPv4, IPv6, domains, URLs, MD5, SHA1, and SHA256.
 
-```bash
-launchctl unload ~/Library/LaunchAgents/com.threatspan.plist
-rm ~/Library/LaunchAgents/com.threatspan.plist
-```
-
----
-
-## Command-line options
-
-```
-threatspan [options]
-
-  --port <n>     Port to listen on (default: 3000)
-  --no-open      Don't auto-open the browser
-  --version      Show version
-  --help         Show help
-```
-
-```bash
-threatspan --port 8080            # different port
-threatspan --no-open              # headless / launchd
-PORT=9000 threatspan              # via env var
-```
-
----
-
-## Why a local server?
-
-Browsers block direct API calls from local HTML files (`file://` origin) due to CORS. The included `server.js` is a zero-dependency Node.js proxy that:
-
-- Serves `threatspan.html` at `http://localhost:3000`
-- Routes API calls through `/api/proxy` so your keys actually work
-- Only proxies requests to an explicit allowlist of security API hosts — nothing else
-- Runs entirely on your machine; no cloud, no telemetry, no analytics
-
----
+![ThreatSpan API key settings](docs/assets/threatspan-settings.png)
 
 ## API Keys
 
-Open **Settings** (gear icon, top-right) and paste your keys. They're encrypted at rest with AES-256-GCM and stored in `~/.threatspan/keys.json` (chmod 600). The decryption key is generated on first run and saved to `~/.threatspan/secret` (chmod 600); the state directory is chmod 700. `keys.json` on its own is useless if it leaks. Keys are sent only to the provider they belong to. (Pre-1.1 installs that stored these in `keys.json` and `~/.threatspan_key` are migrated automatically.)
+Some modules require API keys. Others work immediately.
 
-| Module | Provider | Free Tier |
-|--------|----------|-----------|
-| VirusTotal | [virustotal.com/gui/my-apikey](https://www.virustotal.com/gui/my-apikey) | 4 req/min, 500/day |
-| AbuseIPDB | [abuseipdb.com/account/api](https://www.abuseipdb.com/account/api) | 1,000 req/day |
-| IPQualityScore | [ipqualityscore.com/user/settings](https://www.ipqualityscore.com/user/settings) | 200 req/day |
-| Shodan | [account.shodan.io](https://account.shodan.io) | 1 req/sec, 100/month |
-| GreyNoise | [viz.greynoise.io/account/api-key](https://viz.greynoise.io/account/api-key) | Optional — 10/day without |
-| AlienVault OTX | [otx.alienvault.com/settings](https://otx.alienvault.com/settings) | Free |
-| abuse.ch | [auth.abuse.ch](https://auth.abuse.ch) | Free (URLhaus + ThreatFox + MalwareBazaar) |
-| urlscan.io | [urlscan.io/user/profile](https://urlscan.io/user/profile) | 100 public scans/day |
+| Provider | Used for | Key required |
+| --- | --- | --- |
+| VirusTotal | Reputation, URL/file/IP scans, AV consensus | Yes |
+| AbuseIPDB | IP abuse confidence and reports | Yes |
+| IPQualityScore | Fraud, proxy, VPN, Tor, bot, URL risk | Yes |
+| Shodan | Open ports, services, banners, CVEs | Yes |
+| GreyNoise | Internet scanner classification | Optional |
+| AlienVault OTX | Pulses, related IOCs, MITRE ATT&CK tags | Yes |
+| abuse.ch | URLhaus, ThreatFox, MalwareBazaar | Yes |
+| urlscan.io | URL/domain screenshots and scan details | Yes |
+| GeoIP / ASN | Location and network ownership via ipwho.is | No |
+| DNS | Cloudflare DNS-over-HTTPS lookups | No |
+| WHOIS / RDAP | Registration and network ownership | No |
+| Sucuri SiteCheck | Website blacklist and malware checks | No |
+| CISA KEV | Known exploited CVE cross-reference | No |
+| NIST NVD | CVSS, severity, and CVE summaries | No |
 
-**No key needed:** GeoIP via [ipwho.is](https://ipwho.is), DNS via Cloudflare DoH, WHOIS via RDAP, Sucuri SiteCheck, [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog), [NIST NVD](https://nvd.nist.gov/).
+Keys are encrypted at rest under `~/.threatspan/`. See [SECURITY.md](SECURITY.md) for the local security model.
 
----
+## Playbooks
 
-## Keyboard Shortcuts
+ThreatSpan playbooks reduce noise and API usage by matching the investigation to the threat scenario.
 
-| Action | Shortcut |
-|--------|----------|
-| Focus IOC input | `/` or `⌘K` |
-| Run investigation | `Enter` |
-| New investigation | `⌘N` |
-| Bulk IOC extraction | `⌘B` |
-| Paste & analyze clipboard | `⌘⇧V` |
-| Cancel scan / close modal | `Esc` |
-| Defang / refang IOC | click the `[.]` toggle |
+| Playbook | Best for | What it emphasizes |
+| --- | --- | --- |
+| Full Profile | Deep investigation | Every applicable module |
+| Quick Triage | Fast alert validation | Reputation-only sweep |
+| Phishing Triage | URLs and suspicious domains | urlscan, WHOIS age, DNS, website checks |
+| Ransomware IOC | Hashes, samples, C2, IR handoff | MalwareBazaar, ThreatFox, OTX, VT, response checklist |
+| C2 Infrastructure | External IPs and domains | Shodan, GreyNoise, WHOIS, DNS, related intel |
 
-**Supported IOC types:** IPv4, IPv6, Domain, URL, MD5, SHA1, SHA256
+## Bulk IOC Extraction
 
-**Lost?** Click the `?` icon in the top-right header for the guided tour. Hover any element for an inline tooltip.
+Paste a SIEM alert, EDR event, email body, proxy log, CSV, plain text file, or STIX-like payload. ThreatSpan extracts supported IOCs, refangs defanged indicators, lets you select what matters, and creates one investigation per IOC.
 
----
+![ThreatSpan bulk IOC extraction](docs/assets/threatspan-bulk-extraction.png)
 
-## Features
+## Exports
 
-### Core
-- **Live risk gauge** — weighted score (0–100) across all reputation modules
-- **Verdict** — Clean / Likely Clean / Suspicious / Malicious with color coding
-- **14 enrichment modules** — VirusTotal, AbuseIPDB, IPQS, Shodan, GreyNoise, URLhaus, ThreatFox, MalwareBazaar, OTX, Sucuri, urlscan.io, GeoIP, DNS, WHOIS
-- **Stacked module cards** — expand any card for full structured data
-- **Investigation history** — last 50 cached locally, click to restore
-- **Defang toggle** — display IOCs in `198.51.100[.]42` format for safe sharing
+ThreatSpan can export:
 
-### Investigation Playbooks
-Rather than running every module every time, playbooks let you focus on what matters for the specific threat you're looking at. Each one comes with a pre-built analyst checklist.
+- Plain text reports
+- Markdown reports
+- JSON case data
+- STIX 2.1 bundles
+- MISP event JSON
+- MITRE ATT&CK Navigator layers
+- NIST CSF 2.0 reports
+- CSV history
+- Share links and case JSON for handoff
 
-- **Full Profile** — every applicable module
-- **Quick Triage** — reputation-only sweep, fast
-- **Phishing Triage** — URL/domain focus + urlscan screenshot + WHOIS age check
-- **Ransomware IOC** — VT + MalwareBazaar + ThreatFox + OTX + IR checklist
-- **C2 Infrastructure** — Shodan + GreyNoise + WHOIS + DNS recon
+## Command Line
 
-### Bulk IOC Extraction
-Paste a SIEM alert, email body, or raw log into the bulk modal. ThreatSpan pulls out every IPv4, domain, URL, MD5, SHA1, and SHA256 it finds — including defanged forms like `8[.]8[.]8[.]8` and `hxxps://`. Pick which ones to investigate; each becomes its own history entry.
+```text
+threatspan [options]
+threatspan <subcommand>
 
-### urlscan.io Screenshots
-For URL and domain investigations, ThreatSpan pulls the most recent public urlscan result or submits a new scan and displays the screenshot inline inside the module card.
+Options:
+  --port <n>     Port to listen on (default: 3000, env PORT)
+  --no-open      Do not auto-open the browser
+  --version, -v  Show version
+  --help, -h     Show help
 
-### MITRE ATT&CK + CISA KEV Enrichment
-- **CISA KEV cross-reference** — every CVE Shodan finds gets checked against the [CISA Known Exploited Vulnerabilities catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog). Actively exploited CVEs get a red `KEV` badge; ransomware-associated ones get `KEV · Ransomware`.
-- **NVD CVSS scores** — CVEs are enriched with CVSS v3.1 scores, severity, attack vector, and a summary. Each links to its NVD page.
-- **MITRE ATT&CK techniques** — when OTX returns pulses tagged with technique IDs (`T1071`, `T1486`, etc.), ThreatSpan surfaces them as clickable chips linking to attack.mitre.org.
-- **ATT&CK Navigator layer export** — generates a JSON layer file you can drop directly into the [MITRE ATT&CK Navigator](https://mitre-attack.github.io/attack-navigator/).
+Subcommands:
+  install-launchd [--port <n>]   macOS: auto-start at login
+  uninstall-launchd              macOS: remove the LaunchAgent
+```
 
-### NIST CSF 2.0 Mapping
-Response actions are tagged with NIST CSF 2.0 subcategories so investigations can tie back to your framework coverage. The **NIST CSF 2.0 report export** generates a markdown report organized under the 6 CSF functions — useful for compliance reviews and management reporting.
+Examples:
 
-### Export Formats
-- **Plain text** — analyst-readable report
-- **Markdown** — formatted for tickets, wikis, GitHub
-- **JSON** — full structured investigation data
-- **STIX 2.1 bundle** — indicator + note objects, importable into TAXII/MISP/OpenCTI
-- **MISP event** — direct import into MISP via JSON event import
-- **MITRE ATT&CK Navigator layer** — drag into the Navigator for visual TTP heat-maps
-- **NIST CSF 2.0 report** — markdown organized by CSF function
-- **CSV (history)** — all 50 cached investigations for audit/reporting
+```bash
+threatspan --port 8080
+threatspan --no-open
+PORT=9000 threatspan
+```
 
-### Clipboard & URL Integration
-- `⌘⇧V` reads clipboard and analyzes (single IOC) or extracts (multi-IOC text)
-- URL parameters: `http://localhost:3000/?ioc=8.8.8.8&playbook=quick` — wire into macOS Shortcuts, Raycast, Alfred, or any tool that opens URLs
+## macOS Auto-Start
 
----
+```bash
+threatspan install-launchd
+threatspan install-launchd --port 8080
+```
 
-## Privacy & Security
+Remove it with:
 
-- All data stays on your machine. API calls go from your machine directly to the providers, proxied locally through an explicit host allowlist.
-- API keys are encrypted at rest with AES-256-GCM in `~/.threatspan/keys.json`. The decryption key lives in `~/.threatspan/secret` (chmod 600); the directory itself is chmod 700. `keys.json` on its own is useless without the secret.
-- The proxy only listens on `127.0.0.1`. Same-origin enforced (no `*` CORS), `Host` header validated against loopback, and a per-boot 256-bit session token is required on every `/api/*` call (defends against malicious pages and DNS rebinding).
-- Per-host rate limiting on the proxy (VirusTotal: 4/min, default: 30/min) protects your API quotas from runaway pages.
-- SSRF defense: the proxy resolves every upstream and refuses to connect to any private/loopback/link-local address, even via DNS rebinding.
-- No telemetry. No analytics. No phone-home.
+```bash
+threatspan uninstall-launchd
+```
 
----
+## Privacy and Security
+
+- ThreatSpan listens only on `127.0.0.1`.
+- There is no cloud backend, telemetry, analytics, or account system.
+- API keys are encrypted with AES-256-GCM and stored under `~/.threatspan/`.
+- The local proxy allows only explicit security-provider hosts.
+- Same-origin checks, loopback host validation, session-token auth, SSRF defense, request timeouts, and per-host rate limits are built into `server.js`.
+
+Read the full model in [SECURITY.md](SECURITY.md).
+
+## Documentation
+
+- [User Guide](docs/USER_GUIDE.md)
+- [Homebrew Tap Setup](dist/HOMEBREW.md)
+- [Security Model](SECURITY.md)
 
 ## Contributing
 
-PRs welcome. The whole app is two files (`threatspan.html` + `server.js`), no build step, no framework. Open it, edit, refresh.
+ThreatSpan is intentionally small: the core app is `threatspan.html` plus `server.js`.
 
-To add a new module:
-1. Add an entry to `MODULE_DEFS` in `threatspan.html`
-2. Write a `query<Name>(ioc, type, signal)` function
-3. Add a case to `buildModuleBody` for the card display
-4. Wire it into the `runners` object in `startInvestigation`
-5. Add the upstream host to `ALLOWED` in `server.js`
+To add a module:
 
----
+1. Add an entry to `MODULE_DEFS` in `threatspan.html`.
+2. Write a `query<Name>(ioc, type, signal)` function.
+3. Add a display case to `buildModuleBody`.
+4. Wire the runner into `startInvestigation`.
+5. Add the upstream host to the proxy allowlist in `server.js`.
+
+Issues and PRs are welcome.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT. See [LICENSE](LICENSE).
