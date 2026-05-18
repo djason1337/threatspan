@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.12)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build single-file binaries
+        run: npm run build:binaries
+
+      - name: Compute npm tarball SHA-256
+        id: npm_sha
+        run: |
+          VERSION="$(node -p 'require("./package.json").version')"
+          URL="https://registry.npmjs.org/threatspan/-/threatspan-${VERSION}.tgz"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          if curl -fsSL -o /tmp/npm.tgz "$URL"; then
+            SHA=$(sha256sum /tmp/npm.tgz | awk '{print $1}')
+            echo "sha256=${SHA}" >> "$GITHUB_OUTPUT"
+            echo "npm_published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha256=PUBLISH_TO_NPM_FIRST_THEN_RERUN" >> "$GITHUB_OUTPUT"
+            echo "npm_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write release notes
+        run: |
+          cat > /tmp/RELEASE_NOTES.md <<EOF
+          ## Install
+
+          ### npm
+          \`\`\`bash
+          npx threatspan
+          # or
+          npm install -g threatspan
+          \`\`\`
+
+          ### Single-file binary (no Node required)
+          Download the binary for your platform from the assets below.
+          Verify the download against \`SHA256SUMS.txt\`:
+          \`\`\`bash
+          shasum -a 256 -c SHA256SUMS.txt --ignore-missing
+          \`\`\`
+
+          **macOS Gatekeeper:** the binary is unsigned. Strip the quarantine flag once:
+          \`\`\`bash
+          xattr -d com.apple.quarantine ./threatspan-macos-arm64
+          chmod +x ./threatspan-macos-arm64
+          ./threatspan-macos-arm64
+          \`\`\`
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: ${{ github.event.inputs.tag || github.ref_name }}
+          body_path: /tmp/RELEASE_NOTES.md
+          files: |
+            dist/binaries/threatspan-*
+            dist/binaries/SHA256SUMS.txt
+          draft: false
+          prerelease: false

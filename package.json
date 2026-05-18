@@ -45,7 +45,9 @@
     "ThreatSpan.command",
     "ThreatSpan.cmd",
     "examples/",
+    "docs/",
     "README.md",
+    "SECURITY.md",
     "LICENSE"
   ],
   "engines": {

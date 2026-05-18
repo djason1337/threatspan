@@ -21,7 +21,7 @@ ThreatSpan runs on your machine. API calls only go to the providers you configur
 
 ## Install
 
-**Supported platforms:** macOS and Linux. Windows is not supported at this time.
+**Supported platforms:** macOS, Linux, and Windows. The macOS auto-start command is macOS-only.
 
 ThreatSpan requires **Node.js 14 or newer**. There are no runtime npm dependencies.
 
@@ -51,6 +51,10 @@ Open the console at:
 ```text
 http://localhost:3000
 ```
+
+### Single-file binaries
+
+GitHub releases include standalone binaries for macOS, Linux, and Windows. These do not require a separate Node.js install.
 
 ## First Investigation
 

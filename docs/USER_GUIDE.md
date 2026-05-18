@@ -26,6 +26,8 @@ Use a different port when needed:
 threatspan --port 8080
 ```
 
+The macOS `install-launchd` auto-start command is macOS-only.
+
 ## Add API Keys
 
 Open **Settings** from the top-right gear icon.
