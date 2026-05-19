@@ -28,13 +28,13 @@ ThreatSpan requires **Node.js 14 or newer**. There are no runtime npm dependenci
 ### Run with npx
 
 ```bash
-npx threatspan
+npx threatspan@latest
 ```
 
 ### Install globally
 
 ```bash
-npm install -g threatspan
+npm install -g threatspan@latest
 threatspan
 ```
 

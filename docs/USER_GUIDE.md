@@ -5,7 +5,7 @@ This guide is for analysts who want to move from alert to documented investigati
 ## Start ThreatSpan
 
 ```bash
-npx threatspan
+npx threatspan@latest
 ```
 
 Or, if installed globally:
