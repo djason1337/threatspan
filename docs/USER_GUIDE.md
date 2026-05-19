@@ -43,7 +43,7 @@ Keys are encrypted locally and stored under `~/.threatspan/`.
 3. Choose a playbook.
 4. Press **Enter** or click **Analyze**.
 5. Watch module cards complete in the center pane.
-6. Use the right pane for risk indicators, response actions, analyst notes, and audit context.
+6. Use the right pane for risk indicators, response actions, case notes, the generated analyst brief, and audit context.
 
 Supported IOC types:
 
@@ -85,7 +85,7 @@ The right pane shows:
 - Verdict.
 - Risk indicators.
 - Response actions.
-- Analyst notes.
+- Case notes and the generated analyst brief.
 - Audit metadata.
 
 ## Use Bulk IOC Extraction

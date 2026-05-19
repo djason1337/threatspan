@@ -232,6 +232,27 @@
       transition: stroke-dashoffset .9s cubic-bezier(.4, 0, .2, 1), stroke .5s ease;
     }
 
+    .gauge-labels {
+      width: 170px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      margin-top: 4px;
+      padding: 0 1px;
+      color: #94A3B8;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+
+    .gauge-labels span:nth-child(2) {
+      text-align: center;
+    }
+
+    .gauge-labels span:nth-child(3) {
+      text-align: right;
+    }
+
     /* ── Module cards ──────────────────────────────────── */
     .mod-card {
       background: #fff;
@@ -240,6 +261,10 @@
       overflow: hidden;
       box-shadow: 0 1px 3px rgba(0, 0, 0, .04);
       transition: box-shadow .15s ease;
+    }
+
+    .mod-card-head {
+      min-height: 74px;
     }
 
     .mod-card:hover {
@@ -1235,15 +1260,15 @@
       }
 
       html[data-layout="big"] #module-cards {
-        flex-direction: row !important;
-        flex-wrap: wrap;
-        align-items: flex-start;
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(460px, 1fr));
+        align-items: stretch;
         gap: 12px !important;
       }
 
       html[data-layout="big"] #module-cards>.mod-card {
-        flex: 1 1 calc(50% - 6px);
         min-width: 460px;
+        height: 100%;
       }
 
       html[data-layout="big"] #analyst-notes {
@@ -1739,6 +1764,22 @@
       border-bottom-color: rgba(251, 191, 36, .28);
     }
 
+    html[data-theme="dark"] .diff-label {
+      color: #CBD5E1;
+    }
+
+    html[data-theme="dark"] .diff-val {
+      color: #F8FAFC;
+    }
+
+    html[data-theme="dark"] .diff-empty {
+      color: #FDE68A;
+    }
+
+    html[data-theme="dark"] .diff-close {
+      color: #FDE68A;
+    }
+
     html[data-theme="dark"] #overlay {
       background: rgba(2, 6, 23, .56) !important;
     }
@@ -1799,7 +1840,7 @@
           <div class="help-row"><strong>C2 Infrastructure</strong> — Shodan + GreyNoise + WHOIS + DNS recon for
             command-and-control hunts.</div>
         </div>
-        <p class="text-xs text-muted mt-2">Each playbook also pre-fills the analyst notes with a checklist tailored to
+        <p class="text-xs text-muted mt-2">Each playbook adds a case-notes checklist alongside the generated analyst brief for
           that workflow.</p>
       </div>
 
@@ -2050,6 +2091,25 @@
           </button>
         </div>
       </div>
+
+      <hr class="border-border">
+
+      <div>
+        <h3 class="text-xs font-bold uppercase tracking-widest text-muted mb-3">About</h3>
+        <div class="space-y-2 text-xs">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-muted">Version</span>
+            <span id="settings-version" class="font-mono font-semibold text-txt">--</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-muted">Updates</span>
+            <span id="settings-update-status" class="text-muted text-right">Not checked</span>
+          </div>
+          <button class="btn-ghost w-full justify-start" onclick="checkForUpdates(true)" type="button">
+            <span class="msym sm">system_update</span> Check for updates
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="px-6 py-4 border-t border-border flex-shrink-0">
@@ -2271,8 +2331,7 @@
                   style="font-size:33px; color:#94A3B8;">--</span>
               </div>
             </div>
-            <div class="flex justify-between w-full px-1 mt-1"
-              style="font-size:9px; color:#94A3B8; font-weight:700; letter-spacing:.5px; text-transform:uppercase;">
+            <div class="gauge-labels">
               <span>Safe</span><span>Neutral</span><span>Critical</span>
             </div>
             <div id="verdict-badge" class="mt-2 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
@@ -2318,10 +2377,10 @@
           <div id="action-buttons" class="space-y-1.5"></div>
         </div>
 
-        <!-- Analyst Notes -->
+        <!-- Case Notes + Analyst Brief -->
         <div class="px-4 py-3 border-b border-border">
-          <div class="text-xs font-bold uppercase tracking-widest text-muted mb-2">Analyst Notes</div>
-          <textarea id="analyst-notes" rows="18" placeholder="Run an investigation to populate the analyst brief, or type your own notes…"
+          <div class="text-xs font-bold uppercase tracking-widest text-muted mb-2">Case Notes + Analyst Brief</div>
+          <textarea id="analyst-notes" rows="18" placeholder="Run an investigation to generate the analyst brief, or add case notes…"
             class="w-full rounded-lg border border-border px-2.5 py-2 text-xs bg-surf-low placeholder-muted"
             oninput="saveNotes()"></textarea>
           <div class="mt-1.5 flex items-center justify-between text-xs text-muted">
@@ -2407,6 +2466,10 @@
     const TS_TOKEN = (() => {
       const m = document.querySelector('meta[name="threatspan-token"]');
       return m ? m.getAttribute('content') : '';
+    })();
+    const APP_VERSION = (() => {
+      const m = document.querySelector('meta[name="threatspan-version"]');
+      return m ? m.getAttribute('content') : '1.1.0';
     })();
 
     function tsAuthHeaders(extra) {
@@ -2547,6 +2610,7 @@
     let bulkRunning = false;
     let themeTransitionTimer = null;
     let layoutResizeTimer = null;
+    let updateStatus = null;
 
     const PANE_WIDTH_DEFAULTS = {
       laptop: { history: 264, analyst: 300 },
@@ -2643,6 +2707,84 @@
       } catch { /* server unavailable — localStorage remains the fallback */ }
     }
     function savePrefsData() { localStorage.setItem('threatspan_prefs', JSON.stringify(state.prefs)); }
+
+    function renderUpdateStatus() {
+      const versionEl = document.getElementById('settings-version');
+      if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
+      const statusEl = document.getElementById('settings-update-status');
+      if (!statusEl) return;
+      if (!IS_LOCAL_SERVER) {
+        statusEl.textContent = 'Run with local server';
+        statusEl.className = 'text-muted text-right';
+        return;
+      }
+      if (!updateStatus) {
+        statusEl.textContent = 'Not checked';
+        statusEl.className = 'text-muted text-right';
+        return;
+      }
+      if (updateStatus.loading) {
+        statusEl.textContent = 'Checking...';
+        statusEl.className = 'text-info text-right font-semibold';
+        return;
+      }
+      if (updateStatus.disabled) {
+        statusEl.textContent = 'Disabled';
+        statusEl.className = 'text-muted text-right';
+        return;
+      }
+      if (updateStatus.error) {
+        statusEl.textContent = 'Check failed';
+        statusEl.className = 'text-warning text-right font-semibold';
+        return;
+      }
+      if (updateStatus.updateAvailable) {
+        statusEl.textContent = `v${updateStatus.latest} available`;
+        statusEl.className = 'text-warning text-right font-semibold';
+        return;
+      }
+      statusEl.textContent = 'Up to date';
+      statusEl.className = 'text-safe text-right font-semibold';
+    }
+
+    async function checkForUpdates(manual = false) {
+      if (!IS_LOCAL_SERVER) {
+        updateStatus = { error: 'update checks require the local server' };
+        renderUpdateStatus();
+        if (manual) showToast('Update checks require the local server', 'error');
+        return;
+      }
+      updateStatus = { loading: true };
+      renderUpdateStatus();
+      try {
+        const r = await fetch('/api/update', { headers: tsAuthHeaders() });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || 'update check failed');
+        updateStatus = data;
+        state.prefs.lastUpdateCheck = Date.now();
+        savePrefsData();
+        renderUpdateStatus();
+        if (manual) {
+          if (data.disabled) showToast('Update checks are disabled');
+          else if (data.updateAvailable) showToast(`ThreatSpan ${data.latest} is available`, 'success');
+          else showToast('ThreatSpan is up to date', 'success');
+        }
+      } catch (e) {
+        updateStatus = { error: e.message || 'update check failed' };
+        state.prefs.lastUpdateCheck = Date.now();
+        savePrefsData();
+        renderUpdateStatus();
+        if (manual) showToast('Update check failed: ' + updateStatus.error, 'error');
+      }
+    }
+
+    function maybeCheckForUpdates() {
+      if (!IS_LOCAL_SERVER) return;
+      const WEEK = 7 * 24 * 60 * 60 * 1000;
+      if (!state.prefs.lastUpdateCheck || Date.now() - state.prefs.lastUpdateCheck > WEEK) {
+        checkForUpdates(false);
+      }
+    }
 
     function applyTheme() {
       const dark = !!state.prefs.darkMode;
@@ -3186,7 +3328,7 @@
       // ── Containment options — list, do not prescribe ──────
       const opts = containmentOptions(inv);
       if (opts.length) {
-        L.push('Containment options (decision belongs to the analyst, not the tool):');
+        L.push('Containment options:');
         opts.forEach(o => wrapInto(L, `- ${o}`, '  '));
         L.push('');
       }
@@ -3199,6 +3341,17 @@
       }
 
       return L.join('\n').trim();
+    }
+
+    function composeCaseNotes(brief, checklist) {
+      const parts = [];
+      if (brief && brief.trim()) {
+        parts.push('## Generated Analyst Brief\n\n' + brief.trim());
+      }
+      if (checklist && checklist.trim()) {
+        parts.push('## Case Notes / Playbook Checklist\n\n' + checklist.trim());
+      }
+      return parts.join('\n\n');
     }
 
     function wrapInto(buf, text, indent = '') {
@@ -3220,13 +3373,13 @@
       const wk = inv.wellKnown;
 
       if (wk?.kind === 'private' || wk?.kind === 'loopback' || wk?.kind === 'cgnat') {
-        out.push(`This address is non-routable on the public internet. External reputation feeds carry no signal. Whatever generated this IOC needs to be traced through internal telemetry, not blocked at perimeter.`);
+        out.push(`This address is non-routable on the public internet. External reputation feeds carry no signal. Trace the event through internal telemetry before considering perimeter controls.`);
       }
       if (wk?.kind === 'platform') {
-        out.push(`Threat-feed hits on a major hosting / SaaS platform almost always reflect user-uploaded abuse content, not a compromise of the platform. Blocking the apex would break legitimate traffic. Pivot to the specific full-path URL or file hash that was actually observed in the event.`);
+        out.push(`Threat-feed hits on a major hosting / SaaS platform usually reflect user-uploaded abuse content, not a compromise of the platform. Blocking the apex can disrupt legitimate traffic. Pivot to the specific full-path URL or file hash observed in the event.`);
       }
       if (wk?.kind === 'empty') {
-        out.push(`The hash of an empty file is not malware. Most common cause is a broken EDR / SIEM file-capture pipeline emitting hashes for truncated or zero-length files. Investigate the source telemetry, not the hash.`);
+        out.push(`The hash of an empty file is not malware. The most common cause is an EDR or SIEM file-capture pipeline emitting hashes for truncated or zero-length files. Investigate the source telemetry, not the hash.`);
       }
       if (wk?.kind === 'eicar') {
         out.push(`EICAR is the standard antivirus test string. If this hash appears in production, an AV functionality test is likely in progress — confirm with the operator before escalating.`);
@@ -3234,20 +3387,20 @@
       if (gn?.name && /tor/i.test(gn.name)) {
         out.push(`Tor exit nodes are shared infrastructure. Activity from this IP may represent one actor or hundreds of unrelated users. Reputation alone is not sufficient justification for action; tie the verdict to event-specific context.`);
       } else if (gn?.riot) {
-        out.push(`GreyNoise RIOT classification means this IP is associated with a common business service (search engine crawler, monitoring tool, etc). Hits in alerts are typically benign — verify which service before escalating.`);
+        out.push(`GreyNoise RIOT classification means this IP is associated with a common business service, such as a search engine crawler or monitoring provider. Validate the service identity before escalating.`);
       } else if (gn?.classification === 'malicious') {
-        out.push(`GreyNoise has observed this IP scanning the internet with malicious intent. Useful corroborating signal but not definitive on its own — internet-wide scanning behavior is not the same as activity directed at your environment.`);
+        out.push(`GreyNoise has observed this IP scanning the internet with malicious intent. This is useful corroborating signal but not definitive on its own; internet-wide scanning behavior is not the same as activity directed at the environment.`);
       }
-      if (ipqs?.tor) out.push(`IPQS flags Tor. Same caveats as above — shared exit infrastructure, not actor attribution.`);
-      else if (ipqs?.vpn || ipqs?.proxy) out.push(`IPQS flags this as VPN / proxy. Source attribution requires cooperation with the provider; the IP itself is shared by many users.`);
+      if (ipqs?.tor) out.push(`IPQS flags Tor. Treat this as shared exit infrastructure, not actor attribution.`);
+      else if (ipqs?.vpn || ipqs?.proxy) out.push(`IPQS flags this as VPN / proxy infrastructure. Source attribution requires cooperation with the provider; the IP itself may be shared by many users.`);
       if (ab && ab.confidence >= 80 && ab.totalReports >= 100) {
-        out.push(`AbuseIPDB shows sustained, high-volume reporting. The IP has a credible reputation problem, but the categories listed are what others reported — confirm the same activity is what your event actually shows.`);
+        out.push(`AbuseIPDB shows sustained, high-volume reporting. The IP has a credible reputation problem, but the categories listed are reports from other environments; confirm whether the same activity appears in the source event.`);
       }
       const vt = inv.modules.virustotal?.data;
       if (vt?.malicious >= 10) {
         out.push(`Multi-engine VT consensus is high. When ten or more engines independently flag a sample, false-positive risk is low. Family attribution may still vary across engines.`);
       } else if (vt && vt.total > 0 && vt.malicious === 0 && (inv.type.startsWith('SHA') || inv.type === 'MD5')) {
-        out.push(`No VT engine flagged this hash. Could be clean, could be too new for signatures, could be tightly targeted. Sandboxing is the next step if event context warrants it.`);
+        out.push(`No VT engine flagged this hash. It may be clean, too new for signatures, or tightly targeted. Sandboxing is the next step if event context warrants it.`);
       }
       const sh = inv.modules.shodan?.data;
       if (sh?.cves && sh.cves.length) {
@@ -3260,17 +3413,17 @@
       const out = [];
       const t = inv.type;
       if (t === 'IPv4' || t === 'IPv6') {
-        out.push('Confirm the direction of the original event — inbound (someone hit you) vs outbound (someone in your environment hit them). The pivots diverge sharply from there.');
-        out.push('If inbound: search SIEM for any *successful* authentication / response from this IP across all hosts, last 30d. Failed attempts alone are noise; success changes the case.');
-        out.push('If outbound: identify the source host. Outbound traffic to known-bad infra from a server is anomalous and warrants host-side investigation regardless of feed verdicts.');
-        out.push('Check this IP against any other open or recently closed cases in the last 30d — repeat appearances change priority.');
+        out.push('Confirm the direction of the original event: inbound activity toward the environment versus outbound activity from the environment. The pivots diverge sharply from there.');
+        out.push('If inbound: search SIEM for any *successful* authentication / response from this IP across all hosts in the last 30 days. Failed attempts alone are noise; success changes the case.');
+        out.push('If outbound: identify the source host. Outbound traffic to known-bad infrastructure from a server is anomalous and warrants host-side investigation regardless of feed verdicts.');
+        out.push('Check this IP against any other open or recently closed cases in the last 30 days — repeat appearances change priority.');
         out.push('Pull passive DNS for any domains that resolved to this IP recently — campaign infrastructure often rotates IPs while keeping naming patterns.');
       } else if (t === 'Domain') {
         out.push('Pull passive DNS history — recent IP changes, hosting jumps, and parallel subdomains often expose campaign infrastructure.');
         out.push('Check WHOIS / RDAP registration date. Domains < 30 days old, or ones registered through bulk-registrar / privacy-proxy combinations, deserve closer scrutiny.');
-        out.push('Search SIEM proxy / DNS logs for any internal host that resolved or connected to this domain in the last 30d.');
+        out.push('Search SIEM proxy / DNS logs for any internal host that resolved or connected to this domain in the last 30 days.');
         out.push('Check related subdomains and sibling domains under the same registrant — campaigns rarely use a single hostname.');
-        out.push('Capture a screenshot via urlscan.io before the page changes — page content evolves, your forensic snapshot does not.');
+        out.push('Capture a screenshot via urlscan.io before the page changes — page content evolves, but the forensic snapshot remains stable.');
       } else if (t === 'URL') {
         out.push('Capture a urlscan.io snapshot now — page content, redirects, and payload hosting often change within hours.');
         out.push('Walk the redirect chain — phishing kits frequently chain through legitimate redirectors before landing on the actual harvest page.');
@@ -3279,7 +3432,7 @@
         out.push('Check the URL apex against known-good platforms — if the apex is a major SaaS / hosting platform, the URL itself is the IOC, not the domain.');
       } else if (t === 'MD5' || t === 'SHA1' || t === 'SHA256') {
         out.push('Search EDR / endpoint telemetry for this hash across the fleet, last 90d — execution count and host distribution define the case.');
-        out.push('If MalwareBazaar / ThreatFox returned a family attribution, pivot to known TTPs for that family in MITRE ATT&CK and check your SIEM for those behaviors regardless of the original hash.');
+        out.push('If MalwareBazaar / ThreatFox returned a family attribution, pivot to known TTPs for that family in MITRE ATT&CK and check SIEM telemetry for those behaviors regardless of the original hash.');
         out.push('Pull related samples — same imphash, same YARA family, same C2. A single hash rarely tells the full story.');
         out.push('If unseen by VT, consider a sandbox detonation (private — public submission can tip off the actor in targeted campaigns).');
         out.push('Check whether the file was signed and by whom. Revoked / unknown signers materially shift the verdict.');
@@ -3297,7 +3450,7 @@
         out.push('SIEM detection rule keyed on this IP plus context (port, protocol, user-agent) — narrower than a hard block.');
       } else if (t === 'Domain' || t === 'URL') {
         out.push('DNS sinkhole at the resolver — blocks resolution org-wide without touching the perimeter ACL.');
-        out.push('Web proxy / secure-web-gateway block — same scope, different enforcement point.');
+        out.push('Web proxy / secure web gateway block — same scope, different enforcement point.');
         out.push('Mail-gateway URL-rewrite / quarantine for the URL pattern — addresses phishing delivery without DNS-level impact.');
         out.push('SIEM alert on any future request — useful when policy or scope prevents a hard block.');
       } else if (t === 'MD5' || t === 'SHA1' || t === 'SHA256') {
@@ -4231,6 +4384,7 @@
       const playbookId = opts.playbook && PLAYBOOKS[opts.playbook] ? opts.playbook : activePlaybook;
       const playbook = PLAYBOOKS[playbookId] || PLAYBOOKS.full;
       const wellKnown = lookupWellKnownHash(ioc, type) || lookupWellKnownIP(ioc, type) || lookupWellKnownDomain(ioc, type);
+      const notesTemplate = playbook.notes || '';
       const inv = {
         id: opts.prebuiltId || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
         ioc, type,
@@ -4238,7 +4392,9 @@
         riskScore: null,
         verdict: null,
         modules: {},
-        notes: '',
+        notes: notesTemplate,
+        notesTemplate,
+        notesTouched: false,
         playbook: playbook.id,
         actions: [],
         wellKnown,
@@ -4344,11 +4500,11 @@
         ? inv.wellKnown.verdict
         : (getVerdict(finalScore)?.label || null);
 
-      // Generate the analyst brief once the scan is fully settled. Don't
-      // overwrite if the user already typed in the textarea (only relevant
-      // for foreground scans where the field was editable).
-      const userEdited = isForeground() && document.getElementById('analyst-notes').value.trim() !== '';
-      if (!userEdited) inv.notes = generateAnalystBrief(inv);
+      // Generate the analyst brief once the scan is fully settled. Preserve
+      // analyst-entered case notes; otherwise combine the brief with any
+      // playbook checklist seeded at scan start.
+      const userEdited = !!inv.notesTouched;
+      if (!userEdited) inv.notes = composeCaseNotes(generateAnalystBrief(inv), inv.notesTemplate);
 
       if (inv.priorCase) {
         inv.diffVsPrior = computeCaseDiff(inv.priorCase, inv);
@@ -4402,7 +4558,7 @@
         el.className = 'mod-card';
         el.id = `card-${modId}`;
         el.innerHTML = `
-      <div class="px-5 py-4">
+      <div class="px-5 py-4 mod-card-head">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="shimmer rounded-lg" style="width:34px;height:34px;flex-shrink:0;"></div>
@@ -4475,7 +4631,7 @@
       }
 
       card.innerHTML = `
-    <div class="px-4 py-3.5">
+    <div class="px-4 py-3.5 mod-card-head">
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-3 min-w-0">
           <div class="flex items-center justify-center rounded-lg flex-shrink-0"
@@ -4850,7 +5006,7 @@
         '<div class="text-xs text-muted italic">Scanning…</div>';
       renderActionButtons({ riskScore: null });
       renderCaseOverview(state.current);
-      document.getElementById('analyst-notes').value = '';
+      document.getElementById('analyst-notes').value = state.current?.notes || '';
       document.getElementById('audit-info').textContent = 'Scanning…';
       document.getElementById('verdict-badge').textContent = 'Scanning…';
       document.getElementById('verdict-badge').style.background = '#EFF6FF';
@@ -5050,18 +5206,14 @@
 
     // Response actions tagged with NIST CSF 2.0 subcategories
     const ACTION_DEFS = [
-      { icon: 'confirmation_number', label: 'Create Ticket', color: '#0F172A', bg: '#F1F5F9', csf: ['RS.CO-02'], csfTip: 'NIST CSF: RS.CO-02 — Internal/external stakeholders notified of incidents' },
       { icon: 'content_copy', label: 'Copy IOC', color: '#2563EB', bg: '#EFF6FF', csf: ['ID.RA-01'], csfTip: 'NIST CSF: ID.RA-01 — Vulnerabilities & threats identified, validated, recorded' },
     ];
 
     function renderActionButtons(inv) {
       const el = document.getElementById('action-buttons');
-      const score = inv.riskScore;
-      const active = score != null;
-      const high = score != null && score >= 50;
 
       el.innerHTML = ACTION_DEFS.map((a, i) => {
-        const enabled = i === 1 ? true : active;
+        const enabled = true;
         return `<button class="action-btn" id="action-${i}"
        style="background:${enabled ? a.bg : '#F1F5F9'};color:${enabled ? a.color : '#94A3B8'};${!enabled ? 'cursor:not-allowed;' : ''}"
        ${!enabled ? 'disabled' : ''} onclick="execAction(${i},this)">
@@ -5104,11 +5256,6 @@
       const inv = state.current;
       if (!inv) return;
       const handlers = [
-        () => {
-          const t = `[${new Date().toISOString()}] ThreatSpan IOC Report\nIOC: ${inv.ioc}\nType: ${inv.type}\nRisk Score: ${inv.riskScore}/100\nVerdict: ${inv.verdict}\nAnalyst Notes: ${inv.notes || 'none'}`;
-          copyToClipboard(t);
-          showToast('Ticket template copied to clipboard', 'success');
-        },
         () => { copyToClipboard(inv.ioc); showToast('IOC copied'); },
       ];
       if (handlers[idx]) {
@@ -5130,9 +5277,11 @@
 
     function saveNotes() {
       if (!state.current) return;
+      state.current.notesTouched = true;
       state.current.notes = document.getElementById('analyst-notes').value;
       const si = state.investigations.findIndex(i => i.id === state.current.id);
       if (si !== -1) {
+        state.investigations[si].notesTouched = true;
         state.investigations[si].notes = state.current.notes;
         saveInvestigations();
         persistCaseDebounced(state.investigations[si]);
@@ -5305,6 +5454,7 @@
         countEl.innerHTML = `Keys configured: <strong style="color:${allDone ? '#059669' : '#D97706'}">${configuredCount} / ${totalCount}</strong> — saved to ${storageLabel}`;
       }
       updateLayoutControls();
+      renderUpdateStatus();
 
       // API key fields
       const container = document.getElementById('api-key-fields');
@@ -5806,7 +5956,7 @@
           if (v != null && v !== '' && typeof v !== 'object') lines.push(`  ${k}: ${v}`);
         }
       }
-      lines.push('', '-'.repeat(62), 'ANALYST NOTES', '-'.repeat(62), inv.notes || '(none)');
+      lines.push('', '-'.repeat(62), 'CASE NOTES / ANALYST BRIEF', '-'.repeat(62), inv.notes || '(none)');
       lines.push('', '='.repeat(62), `Generated: ${new Date().toISOString()} by ThreatSpan`);
       return { content: lines.join('\n'), mime: 'text/plain', ext: 'txt' };
     }
@@ -5840,14 +5990,14 @@
         }
         lines.push('');
       }
-      lines.push('## Analyst Notes', '', inv.notes || '_(none)_', '');
+      lines.push('## Case Notes / Analyst Brief', '', inv.notes || '_(none)_', '');
       lines.push('---', `*Generated ${new Date().toISOString()} by ThreatSpan*`);
       return { content: lines.join('\n'), mime: 'text/markdown', ext: 'md' };
     }
 
     function buildJsonReport(inv) {
       const out = {
-        threatspan_version: '1.0',
+        threatspan_version: APP_VERSION,
         generated: new Date().toISOString(),
         investigation: {
           id: inv.id, ioc: inv.ioc, type: inv.type,
@@ -5918,7 +6068,7 @@
         objects.push({
           type: 'note', spec_version: '2.1', id: noteId,
           created: now, modified: now,
-          content: inv.notes, abstract: 'Analyst notes', authors: ['SOC Analyst'],
+          content: inv.notes, abstract: 'Case notes and analyst brief', authors: ['SOC Analyst'],
           object_refs: [indicatorId],
         });
       }
@@ -6080,7 +6230,7 @@
       }
 
       if (inv.notes) {
-        lines.push('## Analyst Notes', '', inv.notes, '');
+        lines.push('## Case Notes / Analyst Brief', '', inv.notes, '');
       }
       lines.push('---', `*Generated by ThreatSpan — ${new Date().toISOString()}*`);
       return { content: lines.join('\n'), mime: 'text/markdown', ext: 'md' };
@@ -6121,7 +6271,7 @@
             (p.modules
               ? `Runs ${modCount} of ${fullCount} IP modules (~${reduction}% fewer API calls).`
               : `Runs every applicable module — most thorough, highest API usage.`) +
-            (p.notes ? `\n\nPre-fills analyst notes with a checklist for this scenario.` : '');
+            (p.notes ? `\n\nAdds a case-notes checklist for this scenario.` : '');
           return `
     <button class="pb-chip tip${activePlaybook === p.id ? ' active' : ''}" onclick="selectPlaybook('${p.id}')" data-tip="${tip}">
       <span class="msym">${p.icon}</span>${esc(p.name)}
@@ -6793,6 +6943,7 @@
       processUrlParams();
       processHashFragment();
       if (IS_LOCAL_SERVER) {
+        maybeCheckForUpdates();
         // Load keys from disk first; first-run check runs after so we don't
         // falsely pop settings when keys exist on disk but not in localStorage.
         loadKeysFromServer().then(() => {

@@ -93,6 +93,10 @@ function parsePortArg(argv, fallback) {
 
 const PORT    = parsePortArg(args, 3000);
 const NO_OPEN = args.includes('--no-open') || process.env.THREATSPAN_NO_OPEN === '1';
+const UPDATE_CHECK_DISABLED = process.env.THREATSPAN_NO_UPDATE_CHECK === '1';
+const UPDATE_CHECK_URL = 'https://registry.npmjs.org/threatspan/latest';
+const UPDATE_CHECK_TTL_MS = 6 * 60 * 60 * 1000;
+let updateCheckCache = null;
 
 // ── State directory ──────────────────────────────────────────────────────────
 // Everything user-owned lives under ~/.threatspan/ (chmod 700) so installs from
@@ -465,6 +469,73 @@ async function handleProxy(target, req, res) {
   req.pipe(upstream, { end: true });
 }
 
+function compareVersions(a, b) {
+  const pa = String(a || '').replace(/^v/i, '').split(/[.-]/).map(n => parseInt(n, 10) || 0);
+  const pb = String(b || '').replace(/^v/i, '').split(/[.-]/).map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length, 3); i++) {
+    const da = pa[i] || 0;
+    const db = pb[i] || 0;
+    if (da > db) return 1;
+    if (da < db) return -1;
+  }
+  return 0;
+}
+
+function checkForUpdate() {
+  if (UPDATE_CHECK_DISABLED) {
+    return Promise.resolve({
+      current: VERSION,
+      latest: null,
+      updateAvailable: false,
+      disabled: true,
+      checkedAt: new Date().toISOString(),
+    });
+  }
+  if (updateCheckCache && Date.now() - updateCheckCache.ts < UPDATE_CHECK_TTL_MS) {
+    return Promise.resolve(updateCheckCache.payload);
+  }
+  return new Promise((resolve, reject) => {
+    const req = https.get(UPDATE_CHECK_URL, {
+      headers: {
+        'accept': 'application/json',
+        'user-agent': `ThreatSpan/${VERSION}`,
+      },
+      timeout: 6000,
+    }, (upRes) => {
+      let body = '';
+      upRes.setEncoding('utf8');
+      upRes.on('data', chunk => {
+        body += chunk;
+        if (body.length > 128 * 1024) req.destroy(new Error('update response too large'));
+      });
+      upRes.on('end', () => {
+        if (upRes.statusCode < 200 || upRes.statusCode >= 300) {
+          reject(new Error(`registry returned ${upRes.statusCode}`));
+          return;
+        }
+        try {
+          const json = JSON.parse(body);
+          const latest = json.version || null;
+          const payload = {
+            current: VERSION,
+            latest,
+            updateAvailable: !!latest && compareVersions(latest, VERSION) > 0,
+            disabled: false,
+            checkedAt: new Date().toISOString(),
+            url: 'https://www.npmjs.com/package/threatspan',
+          };
+          updateCheckCache = { ts: Date.now(), payload };
+          resolve(payload);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('update check timed out')));
+    req.on('error', reject);
+  });
+}
+
 // ── HTML serve with token injection ──────────────────────────────────────────
 function serveHtml(res) {
   let html;
@@ -476,7 +547,7 @@ function serveHtml(res) {
 
   // Inject the per-boot session token as a meta tag so the page can read it.
   // Place it immediately after <head> (the page already requires <head> on line 4).
-  const meta = `\n  <meta name="threatspan-token" content="${SESSION_TOKEN}">`;
+  const meta = `\n  <meta name="threatspan-token" content="${SESSION_TOKEN}">\n  <meta name="threatspan-version" content="${VERSION}">`;
   html = html.replace('<head>', `<head>${meta}`);
 
   res.writeHead(200, {
@@ -538,6 +609,26 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/keys' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(readKeys()));
+    return;
+  }
+
+  // GET /api/update  → current installed version + latest npm version
+  if (url.pathname === '/api/update' && req.method === 'GET') {
+    try {
+      const payload = await checkForUpdate();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(payload));
+    } catch (e) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        current: VERSION,
+        latest: null,
+        updateAvailable: false,
+        disabled: false,
+        error: e.message || 'update check failed',
+        checkedAt: new Date().toISOString(),
+      }));
+    }
     return;
   }
 
